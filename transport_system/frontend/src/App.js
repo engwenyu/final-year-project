@@ -407,20 +407,42 @@ export const PassengerDashboard = () => {
 
   const fetchWalletAndBookings = async () => {
     try {
+      // 1️⃣ Fetch wallet balance
       const walletData = await apiRequest("/payments/wallet/", { token });
       setWalletBalance(walletData.balance || 0);
 
+      // 2️⃣ Fetch all bookings for this user
       const bookingsData = await apiRequest("/journeys/bookings/", { token });
       const allBookings = bookingsData.results || bookingsData || [];
 
-      // Filter out cancelled bookings - only show confirmed and pending bookings
-      const activeBookings = allBookings.filter(
-        (booking) => booking.status !== "cancelled"
+      // 3️⃣ Normalize the data for consistent use in UI
+      const normalizedBookings = allBookings.map((b) => ({
+        id: b.id,
+        booking_reference: b.booking_reference,
+        status: b.status,
+        seats_booked: b.seats_booked,
+        total_fare: b.total_fare,
+        base_fare: b.base_fare, // ✅ added
+        pickup_stop: b.pickup_stop,
+        dropoff_stop: b.dropoff_stop,
+        created_at: b.created_at,
+        journey: {
+          id: b.journey?.id,
+          route_name: b.journey?.route_name || b.route_name,
+          bus_number: b.journey?.bus?.bus_number || b.bus_number,
+          scheduled_departure: b.journey?.scheduled_departure,
+          scheduled_arrival: b.journey?.scheduled_arrival,
+        },
+      }));
+
+      // 4️⃣ Filter out cancelled bookings if you want only active ones
+      const activeBookings = normalizedBookings.filter(
+        (b) => b.status !== "cancelled"
       );
 
       setBookings(activeBookings);
     } catch (err) {
-      console.error("Error fetching wallet/bookings:", err);
+      console.error("❌ Error fetching wallet/bookings:", err);
     }
   };
 
@@ -540,38 +562,51 @@ export const PassengerDashboard = () => {
   };
 
   // Book a journey
-  const bookJourney = async (journeyId) => {
+  const bookBus = async (journeyId) => {
+    // ensure pickup/dropoff selected and seats
+    const seats = Math.min(selectedSeats[journeyId] || 1, 2);
+    if (!selectedPickup || !selectedDropoff) {
+      alert("Select pickup and dropoff stops first.");
+      return;
+    }
+
+    // compute actual fare per seat client-side (recommended)
+    // If stops objects have 'fare' property which is cumulative fare from origin:
+    const actualFarePerSeat = Math.abs(
+      Number(selectedDropoff.fare || 0) - Number(selectedPickup.fare || 0)
+    );
+    // fallback if 0 or not available:
+    const finalFarePerSeat =
+      actualFarePerSeat || Number(selectedJourneyFareMap?.[journeyId] || 0);
+
+    const totalFare = finalFarePerSeat * seats;
+
+    const payload = {
+      seats: seats,
+      pickup_stop:
+        selectedPickup.id || selectedPickup.stop_name || selectedPickup,
+      dropoff_stop:
+        selectedDropoff.id || selectedDropoff.stop_name || selectedDropoff,
+      actual_fare_per_seat: finalFarePerSeat,
+      // optionally include booking_reference if you generate on frontend
+    };
+
     try {
-      const seats = Number(selectedSeats[journeyId] || 1);
-      const actualFare = calculateActualFare();
-      const totalCost = actualFare * seats;
-
-      // Check if user has enough balance
-      if (walletBalance < totalCost) {
-        alert(
-          `❌ Insufficient balance! You need UGX ${totalCost.toLocaleString()} but have UGX ${walletBalance.toLocaleString()}`
-        );
-        return;
-      }
-
-      await apiRequest(`/journeys/journeys/${journeyId}/book/`, {
+      const res = await apiRequest(`/journeys/journeys/${journeyId}/book/`, {
         method: "POST",
         token,
-        body: {
-          seats,
-          pickup_stop: selectedPickup.id,
-          dropoff_stop: selectedDropoff.id,
-          actual_fare: actualFare,
-        },
+        body: payload,
       });
-      alert(`✅ Booking successful!`);
-      fetchWalletAndBookings();
-      handleSearchJourneys();
-    } catch (error) {
-      console.error("Booking failed:", error);
-      alert(
-        "❌ Booking failed. Please check your wallet balance and seat availability."
-      );
+
+      // res now contains BookingSerializer output (with pickup_stop, dropoff_stop, base_fare, total_fare, journey_details)
+      alert("✅ Booking successful");
+      // add to bookings state so UI updates immediately
+      setBookings((prev) => [res, ...prev]);
+      // optionally refresh journeys/available to update seat counts
+      fetchJourneysForRoute(selectedRoute);
+    } catch (err) {
+      console.error("Booking failed:", err);
+      alert("Booking failed. See console for details.");
     }
   };
 
@@ -1013,7 +1048,7 @@ export const PassengerDashboard = () => {
                                 className="border px-2 py-1 rounded w-16"
                               />
                               <button
-                                onClick={() => bookJourney(journey.id)}
+                                onClick={() => bookBus(journey.id)}
                                 disabled={
                                   journey.available_seats === 0 ||
                                   walletBalance < totalCost
@@ -1086,7 +1121,15 @@ export const PassengerDashboard = () => {
                         <h3 className="font-bold text-lg">
                           Booking #{booking.booking_reference || booking.id}
                         </h3>
-                        <p className="text-gray-600 mt-1">Route: {routeName}</p>
+                        <p className="text-gray-600 mt-1">
+                          Route: {routeName || "N/A"}
+                          {booking.bus_number && (
+                            <span className="ml-2 text-sm text-gray-500">
+                              • Bus: {booking.bus_number}
+                            </span>
+                          )}
+                        </p>
+
                         <p className="text-sm text-gray-500 mt-2">
                           <strong>Pickup:</strong> {pickupStop} <br />
                           <strong>Dropoff:</strong> {dropoffStop}
@@ -1135,6 +1178,8 @@ export const PassengerDashboard = () => {
     </div>
   );
 };
+
+// ================= DRIVER DASHBOARD =================
 
 // ================= DRIVER DASHBOARD =================
 export const DriverDashboard = () => {

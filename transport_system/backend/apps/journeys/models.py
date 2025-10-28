@@ -50,6 +50,27 @@ class NFCTransaction(models.Model):
         return f"{self.transaction_type} - {self.user.username} on Journey {self.journey.id}"
 
 
+#class Booking(models.Model):
+    #STATUS_CHOICES = [
+    #    ('confirmed', 'Confirmed'),
+     #   ('cancelled', 'Cancelled'),
+      #  ('completed', 'Completed'),
+    #]
+
+    #user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    #journey = models.ForeignKey(Journey, on_delete=models.CASCADE)
+    #seats_booked = models.PositiveIntegerField(default=1)
+    #booking_reference = models.CharField(max_length=20, unique=True)
+    #booking_reference = models.CharField(max_length=20)
+    #total_fare = models.DecimalField(max_digits=10, decimal_places=2)
+    #status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed')
+    #pickup_stop = models.CharField(max_length=100, blank=True, null=True)
+    #dropoff_stop = models.CharField(max_length=100, blank=True, null=True)
+    #created_at = models.DateTimeField(auto_now_add=True)  # ✅ needed for admin
+
+    #def __str__(self):
+    #    return f"{self.booking_reference} - {self.user.username}"
+
 class Booking(models.Model):
     STATUS_CHOICES = [
         ('confirmed', 'Confirmed'),
@@ -60,13 +81,13 @@ class Booking(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     journey = models.ForeignKey(Journey, on_delete=models.CASCADE)
     seats_booked = models.PositiveIntegerField(default=1)
-    #booking_reference = models.CharField(max_length=20, unique=True)
-    booking_reference = models.CharField(max_length=20)
+    booking_reference = models.CharField(max_length=20)  # can make unique later if you wish
+    base_fare = models.DecimalField(max_digits=10, decimal_places=2, default=0)  # ✅ added
     total_fare = models.DecimalField(max_digits=10, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='confirmed')
     pickup_stop = models.CharField(max_length=100, blank=True, null=True)
     dropoff_stop = models.CharField(max_length=100, blank=True, null=True)
-    created_at = models.DateTimeField(auto_now_add=True)  # ✅ needed for admin
+    created_at = models.DateTimeField(auto_now_add=True)  # ✅ keeps track of time booked
 
     def __str__(self):
         return f"{self.booking_reference} - {self.user.username}"

@@ -12,48 +12,95 @@ from apps.buses.models import Bus
 import uuid
 from rest_framework.decorators import api_view, permission_classes
 from apps.routes.models import Route, BusRouteAssignment, Stop
-
+from django.db import IntegrityError
+from apps.routes.models import Stop
 
 class JourneyViewSet(viewsets.ModelViewSet):
     queryset = Journey.objects.all()
     serializer_class = JourneySerializer
     permission_classes = [IsAuthenticated]
-    
-    # Inside your JourneyViewSet book() method
+
     @action(detail=True, methods=['post'])
     def book(self, request, pk=None):
-        journey = self.get_object()
-        seats = int(request.data.get('seats', 1))
+        try:
+            journey = self.get_object()
+            user = request.user
+            seats = int(request.data.get("seats", 1))
+            pickup = request.data.get("pickup_stop")
+            dropoff = request.data.get("dropoff_stop")
 
-        if journey.available_seats < seats:
-            return Response({'error': 'Not enough seats available'}, status=status.HTTP_400_BAD_REQUEST)
+            from apps.routes.models import Stop  # ensure imported here or globally
 
-        total_fare = journey.fare * seats
+            # --- Helper: resolve stop name from ID, name, or placeholder ---
+            def resolve_stop(value):
+                """Convert stop id, name, or placeholder like 'kampala_23' into a readable stop name."""
+                if not value:
+                    return None
 
-        # Try multiple times to create a unique booking reference
-        for _ in range(5):
-            booking_reference = f"BK{uuid.uuid4().hex[:8].upper()}"
-            try:
-                booking = Booking.objects.create(
-                    user=request.user,
-                    journey=journey,
-                    seats_booked=seats,
-                    booking_reference=booking_reference,
-                    total_fare=total_fare,
-                    status="confirmed"
-                )
+                # Special placeholder like kampala_23
+                if isinstance(value, str) and value.lower().startswith("kampala_"):
+                    return "Kampala Central"
 
-                # Reduce available seats
-                journey.available_seats -= seats
-                journey.save()
+                # Try lookup by ID
+                try:
+                    if str(value).isdigit():
+                        stop = Stop.objects.filter(id=int(value)).first()
+                        if stop:
+                            return stop.name
+                except Exception:
+                    pass
 
-                return Response(BookingSerializer(booking).data, status=status.HTTP_201_CREATED)
+                # Try lookup by name
+                stop = Stop.objects.filter(name__iexact=str(value).replace("_", " ")).first()
+                if stop:
+                    return stop.name
 
-            except IntegrityError:
-                # Try again if booking reference duplicated
-                continue
+                # Fallback: return original
+                return str(value)
 
-        return Response({"error": "Failed to generate unique booking reference"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            # Resolve both stops to readable names
+            pickup_stop_name = resolve_stop(pickup)
+            dropoff_stop_name = resolve_stop(dropoff)
+
+            # --- Compute fares ---
+            base_fare = getattr(journey.route, "base_fare", 0)
+            actual_fare_per_seat = None
+
+            if request.data.get("actual_fare_per_seat") is not None:
+                actual_fare_per_seat = float(request.data.get("actual_fare_per_seat"))
+            else:
+                # Optional: compute using Stop fares if available
+                pickup_obj = Stop.objects.filter(name__iexact=pickup_stop_name).first()
+                dropoff_obj = Stop.objects.filter(name__iexact=dropoff_stop_name).first()
+                if pickup_obj and dropoff_obj and hasattr(pickup_obj, "fare") and hasattr(dropoff_obj, "fare"):
+                    actual_fare_per_seat = abs(dropoff_obj.fare - pickup_obj.fare)
+
+            if actual_fare_per_seat is None:
+                actual_fare_per_seat = float(journey.fare or base_fare or 0)
+
+            total_fare = actual_fare_per_seat * seats
+
+            # --- Create Booking ---
+            booking = Booking.objects.create(
+                user=user,
+                journey=journey,
+                seats_booked=seats,
+                pickup_stop=pickup_stop_name,
+                dropoff_stop=dropoff_stop_name,
+                base_fare=base_fare,
+                total_fare=total_fare,
+                status="confirmed",
+                booking_reference=request.data.get("booking_reference") or "",
+            )
+
+            serializer = BookingSerializer(booking)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+        except IntegrityError:
+            return Response({"detail": "Booking conflict"}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            print("Booking error:", e)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class BookingViewSet(viewsets.ModelViewSet):
@@ -416,58 +463,6 @@ def get_journeys_by_route(request, route_id):
     ]
     return Response(data)
 
-
-#@api_view(["GET"])
-#@permission_classes([IsAuthenticated])
-#def available_journeys(request):
- #   """
-  #  Returns available (scheduled) journeys.
-   # Optional query param: ?route_id=<id>
-    #"""
-    #route_id = request.GET.get("route_id")
-
-    # Base query: only scheduled journeys
-    #journeys = Journey.objects.filter(status="scheduled")
-
-    # ✅ Filter by route if provided
-    #if route_id:
-     #   journeys = journeys.filter(route_id=route_id)
-
-    #serializer = JourneySerializer(journeys, many=True)
-    #return Response(serializer.data)
-
-
-#@api_view(['GET'])
-#@permission_classes([IsAuthenticated])
-#def available_journeys(request):
-  #  route_id = request.GET.get('route_id')
-   # pickup = request.GET.get('pickup')
-    #dropoff = request.GET.get('dropoff')
-    
-    #if not all([route_id, pickup, dropoff]):
-     #   return Response({'error': 'Missing parameters'}, status=400)
-    
-    # Get journeys for this route that are scheduled or active
-    #journeys = Journey.objects.filter(
-     #   route_id=route_id,
-      #  status__in=['scheduled', 'active'],
-       # scheduled_departure__gte=timezone.now()
-    #).select_related('bus', 'route').order_by('scheduled_departure')
-    
-    #data = []
-    #for journey in journeys:
-     #   data.append({
-      #      'id': journey.id,
-       #     'bus_number': journey.bus.bus_number,
-        #    'bus_license_plate': journey.bus.license_plate,
-         #   'scheduled_departure': journey.scheduled_departure.isoformat(),
-          #  'scheduled_arrival': journey.scheduled_arrival.isoformat(),
-           # 'fare': float(journey.fare),
-            #'available_seats': journey.available_seats,
-            #'status': journey.status,
-        #})
-    
-    #return Response(data)
 
 from django.db import models
 
