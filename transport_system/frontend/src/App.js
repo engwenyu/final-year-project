@@ -1137,8 +1137,6 @@ export const PassengerDashboard = () => {
 };
 
 // ================= DRIVER DASHBOARD =================
-
-// ================= DRIVER DASHBOARD =================
 export const DriverDashboard = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("journeys");
