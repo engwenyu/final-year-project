@@ -476,43 +476,85 @@ export const PassengerDashboard = () => {
     };
   };
 
+  // Create stops from route endpoints (for outer city routes)
+  const createStopsFromRoute = (route) => {
+    const startStop = {
+      id: `start_${route.id}`,
+      stop_name: route.start_location || "Kampala",
+      name: route.start_location || "Kampala",
+      distance_from_start: 0,
+      fare: 0,
+      is_route_endpoint: true,
+    };
+
+    const endStop = {
+      id: `end_${route.id}`,
+      stop_name: route.end_location,
+      name: route.end_location,
+      distance_from_start: route.distance_km || 0,
+      fare: route.base_fare || 0,
+      is_route_endpoint: true,
+    };
+
+    return [startStop, endStop];
+  };
+
   // Fetch stops when route is selected
   const handleRouteSelect = async (route) => {
     try {
       setSelectedRoute(route);
-      const stopsData = await apiRequest(`/routes/${route.id}/stops/`, {
-        token,
-      });
-      let stopsList = stopsData.results || stopsData || [];
 
-      // Add Kampala as default stop to ALL routes
-      const kampalaStop = createKampalaStop(route);
+      // Check if it's an outer city route
+      const isOuterCity =
+        route.route_type?.toLowerCase() === "outer city" ||
+        routeType === "outercity";
 
-      // Check if Kampala stop already exists to avoid duplicates
-      const hasKampalaStop = stopsList.some((stop) =>
-        (stop.stop_name || stop.name).toLowerCase().includes("kampala")
-      );
+      if (isOuterCity) {
+        // For outer city routes, create stops from start and end locations
+        const routeStops = createStopsFromRoute(route);
+        setStops(routeStops);
 
-      if (!hasKampalaStop) {
-        stopsList = [kampalaStop, ...stopsList];
-      }
+        // Auto-select Kampala as pickup and destination as dropoff
+        setSelectedPickup(routeStops[0]); // Kampala
+        setSelectedDropoff(routeStops[1]); // Final destination
 
-      setStops(stopsList);
-
-      // Auto-select Kampala as pickup and last stop as dropoff
-      const kampalaStops = stopsList.filter((stop) =>
-        (stop.stop_name || stop.name).toLowerCase().includes("kampala")
-      );
-
-      if (kampalaStops.length > 0) {
-        setSelectedPickup(kampalaStops[0]);
-        if (stopsList.length > 1) {
-          setSelectedDropoff(stopsList[stopsList.length - 1]);
-        }
+        console.log("✅ Outer city route - Auto-selected stops:", {
+          pickup: routeStops[0].stop_name,
+          dropoff: routeStops[1].stop_name,
+        });
       } else {
-        setSelectedPickup(stopsList[0]);
-        if (stopsList.length > 1) {
-          setSelectedDropoff(stopsList[stopsList.length - 1]);
+        // For intercity routes, fetch stops from API
+        const stopsData = await apiRequest(`/routes/${route.id}/stops/`, {
+          token,
+        });
+        let stopsList = stopsData.results || stopsData || [];
+
+        // Check if Kampala stop exists
+        const hasKampalaStop = stopsList.some((stop) =>
+          (stop.stop_name || stop.name).toLowerCase().includes("kampala")
+        );
+
+        // Add Kampala if not present
+        if (!hasKampalaStop) {
+          const kampalaStop = {
+            id: `kampala_${route.id}`,
+            stop_name: "Kampala Central",
+            name: "Kampala Central",
+            distance_from_start: 0,
+            fare: 0,
+            is_kampala_default: true,
+          };
+          stopsList = [kampalaStop, ...stopsList];
+        }
+
+        setStops(stopsList);
+
+        // Auto-select first and last stop
+        if (stopsList.length > 0) {
+          setSelectedPickup(stopsList[0]);
+          if (stopsList.length > 1) {
+            setSelectedDropoff(stopsList[stopsList.length - 1]);
+          }
         }
       }
 
@@ -645,6 +687,45 @@ export const PassengerDashboard = () => {
     setSelectedPickup(null);
     setSelectedDropoff(null);
     setJourneys([]);
+  };
+
+  const handleTapIn = async (journeyId) => {
+    try {
+      await apiRequest(`/journeys/journeys/${journeyId}/tap_in/`, {
+        token,
+        method: "POST",
+      });
+
+      // ✅ Immediately update UI
+      updateBookingTappedIn(journeyId, true);
+    } catch (err) {
+      console.error("Tap In Error:", err);
+    }
+  };
+
+  const handleTapOut = async (journeyId) => {
+    try {
+      await apiRequest(`/journeys/journeys/${journeyId}/tap_out/`, {
+        token,
+        method: "POST",
+      });
+
+      // ✅ Immediately update UI
+      updateBookingTappedIn(journeyId, false);
+    } catch (err) {
+      console.error("Tap Out Error:", err);
+    }
+  };
+
+  // Update a single booking in state after tapping
+  const updateBookingTappedIn = (journeyId, tappedInStatus) => {
+    setBookings((prev) =>
+      prev.map((b) =>
+        b.journey.id === journeyId || b.journey === journeyId
+          ? { ...b, tapped_in: tappedInStatus }
+          : b
+      )
+    );
   };
 
   return (
@@ -885,30 +966,28 @@ export const PassengerDashboard = () => {
                       </span>
                       📍 Select Dropoff Stop
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                      {stops
-                        .filter((stop) => stop.id !== selectedPickup.id)
-                        .map((stop) => (
-                          <button
-                            key={stop.id}
-                            onClick={() => setSelectedDropoff(stop)}
-                            className={`border-2 rounded-lg p-4 text-left transition ${
-                              selectedDropoff?.id === stop.id
-                                ? "border-red-500 bg-red-50"
-                                : "border-gray-200 hover:border-red-300"
-                            }`}
-                          >
-                            <h4 className="font-bold text-sm mb-1">
-                              {stop.stop_name || stop.name}
-                            </h4>
-                            <p className="text-xs text-gray-500 mb-2">
-                              📏 {stop.distance_from_start || 0} km from start
-                            </p>
-                            <p className="font-semibold text-red-600 text-sm">
-                              UGX {Number(stop.fare || 0).toLocaleString()}
-                            </p>
-                          </button>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {stops.map((stop) => (
+                        <button
+                          key={stop.id}
+                          onClick={() => setSelectedDropoff(stop)}
+                          className={`border-2 rounded-lg p-4 text-left transition ${
+                            selectedDropoff?.id === stop.id
+                              ? "border-red-500 bg-red-50"
+                              : "border-gray-200 hover:border-red-300"
+                          }`}
+                        >
+                          <h4 className="font-bold text-sm mb-1">
+                            {stop.stop_name || stop.name}
+                          </h4>
+                          <p className="text-xs text-gray-500 mb-2">
+                            📏 {stop.distance_from_start || 0} km from start
+                          </p>
+                          <p className="font-semibold text-red-600 text-sm">
+                            UGX {Number(stop.fare || 0).toLocaleString()}
+                          </p>
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -1092,12 +1171,19 @@ export const PassengerDashboard = () => {
               </div>
             ) : (
               bookings.map((booking) => {
-                // Extract booking details with fallbacks for different API response formats
                 const routeName =
-                  booking.route_name ||
-                  booking.journey_route ||
                   booking.route ||
+                  booking.route_name ||
+                  booking.journey?.route_name ||
+                  booking.journey?.route?.name ||
                   "N/A";
+
+                const busNumber =
+                  booking.bus_number ||
+                  booking.journey?.bus_number ||
+                  booking.journey?.bus?.bus_number ||
+                  "N/A";
+
                 const pickupStop =
                   booking.pickup_stop_name || booking.pickup_stop || "N/A";
                 const dropoffStop =
@@ -1121,14 +1207,8 @@ export const PassengerDashboard = () => {
                         <h3 className="font-bold text-lg">
                           Booking #{booking.booking_reference || booking.id}
                         </h3>
-                        <p className="text-gray-600 mt-1">
-                          Route: {routeName || "N/A"}
-                          {booking.bus_number && (
-                            <span className="ml-2 text-sm text-gray-500">
-                              • Bus: {booking.bus_number}
-                            </span>
-                          )}
-                        </p>
+                        <p className="text-gray-600 mt-1">Route: {routeName}</p>
+                        <p className="text-gray-600 mt-1">Bus: {busNumber}</p>
 
                         <p className="text-sm text-gray-500 mt-2">
                           <strong>Pickup:</strong> {pickupStop} <br />
@@ -1146,6 +1226,7 @@ export const PassengerDashboard = () => {
                             : "N/A"}
                         </p>
                       </div>
+
                       <div className="flex flex-col items-end space-y-2">
                         <span
                           className={`px-3 py-1 rounded-full text-xs font-medium ${
@@ -1158,12 +1239,25 @@ export const PassengerDashboard = () => {
                         >
                           {booking.status}
                         </span>
+
                         {booking.status === "confirmed" && (
                           <button
-                            onClick={() => cancelBooking(booking.id)}
-                            className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                            onClick={() =>
+                              booking.tapped_in
+                                ? handleTapOut(
+                                    booking.journey?.id || booking.journey_id
+                                  )
+                                : handleTapIn(
+                                    booking.journey?.id || booking.journey_id
+                                  )
+                            }
+                            className={`px-4 py-2 rounded text-white ${
+                              booking.tapped_in
+                                ? "bg-blue-600 hover:bg-blue-700"
+                                : "bg-green-600 hover:bg-green-700"
+                            }`}
                           >
-                            Cancel Booking
+                            {booking.tapped_in ? "Tapped In" : "Tap In"}
                           </button>
                         )}
                       </div>
@@ -1182,6 +1276,7 @@ export const PassengerDashboard = () => {
 // ================= DRIVER DASHBOARD =================
 
 // ================= DRIVER DASHBOARD =================
+
 export const DriverDashboard = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("journeys");
@@ -1189,29 +1284,68 @@ export const DriverDashboard = () => {
   const [journeys, setJourneys] = useState([]);
   const [earnings, setEarnings] = useState({ today: 0, week: 0, month: 0 });
   const [lastPassengerCounts, setLastPassengerCounts] = useState({});
+  const [busSummary, setBusSummary] = useState([]);
   const token = localStorage.getItem("token");
 
+  // ================== Fetch Bus Summary ==================
+  useEffect(() => {
+    const fetchBusSummary = async () => {
+      const authToken = localStorage.getItem("token");
+
+      if (!authToken) {
+        console.warn("No authentication token found");
+        return;
+      }
+
+      try {
+        const res = await fetch(
+          "http://127.0.0.1:8000/api/journeys/journeys/driver-bus-summary/",
+          {
+            headers: {
+              Authorization: `Token ${authToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        if (res.status === 401) {
+          console.error("Authentication failed - token may be invalid");
+          return;
+        }
+
+        if (!res.ok) {
+          console.warn(`Bus summary endpoint returned ${res.status}`);
+          return;
+        }
+
+        const data = await res.json();
+        console.log("Bus summary data:", data);
+        setBusSummary(data);
+      } catch (error) {
+        console.error("Error fetching bus summary:", error);
+      }
+    };
+
+    fetchBusSummary();
+  }, []);
+
+  // ================== Fetch Dashboard Data ==================
   const fetchData = async () => {
     try {
-      // ================== Fetch Assigned Buses ==================
+      // --- Assigned Buses ---
       const busesData = await apiRequest("/buses/driver-buses/", { token });
-      const busesArray = busesData?.results || [];
-      setAssignedBuses(busesArray);
+      setAssignedBuses(busesData?.results || []);
 
-      // ================== Fetch Journeys ==================
-      // ✅ Fetch journeys assigned to the driver’s buses
+      // --- Journeys ---
       const journeysData = await apiRequest("/journeys/driver-journeys/", {
         token,
       });
-
-      // Filter only scheduled journeys
       const scheduledJourneys = (journeysData.results || []).filter(
         (j) => j.status === "scheduled"
       );
-
       setJourneys(scheduledJourneys);
 
-      // ================== Tap-in Alert System ==================
+      // --- Tap-in Alert System ---
       const newCounts = {};
       scheduledJourneys.forEach((j) => {
         const prevCount = lastPassengerCounts[j.id] || 0;
@@ -1223,18 +1357,14 @@ export const DriverDashboard = () => {
         newCounts[j.id] = j.passengers_tapped_in || 0;
       });
       setLastPassengerCounts(newCounts);
-
-      // ================== Optional: Fetch Earnings ==================
-      // const earningsData = await apiRequest("/driver/earnings/", { token });
-      // setEarnings(earningsData);
     } catch (err) {
-      console.error("❌ Error fetching driver dashboard data:", err);
+      console.error("Error fetching dashboard data:", err);
     }
   };
 
   useEffect(() => {
     fetchData();
-    const interval = setInterval(fetchData, 10000); // refresh every 10s
+    const interval = setInterval(fetchData, 10000);
     return () => clearInterval(interval);
   }, []);
 
@@ -1248,10 +1378,9 @@ export const DriverDashboard = () => {
           Authorization: `Token ${token}`,
         },
       });
-      // Refresh dashboard after completion
       fetchData();
     } catch (err) {
-      console.error("❌ Error completing journey:", err);
+      console.error("Error completing journey:", err);
     }
   };
 
@@ -1260,21 +1389,15 @@ export const DriverDashboard = () => {
     const reason = prompt(
       "Please provide a reason for cancelling this journey:"
     );
-    if (!reason) {
-      alert("Cancellation reason is required.");
-      return;
-    }
+    if (!reason) return alert("Cancellation reason is required.");
 
     try {
       await apiRequest(`/journeys/cancel/${journeyId}/`, {
         method: "POST",
-        token: localStorage.getItem("token"),
-        body: { reason }, // <-- make sure this is included
+        token,
+        body: { reason },
       });
-
-      // Remove journey from state so it disappears immediately
       setJourneys((prev) => prev.filter((j) => j.id !== journeyId));
-
       alert("Journey cancelled successfully.");
     } catch (err) {
       console.error("Error cancelling journey:", err);
@@ -1282,13 +1405,37 @@ export const DriverDashboard = () => {
     }
   };
 
-  // 🔁 Auto-refresh every 10 s
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 10000);
-    return () => clearInterval(interval);
-  }, []);
+  const [status, setStatus] = useState({
+    tapped_in_count: 0,
+    total_booked: 0,
+    occupancy_percent: 0,
+  });
 
+  // ================== Fetch status for each active journey ==================
+  const fetchStatuses = async () => {
+    try {
+      const updates = {};
+      for (const j of journeys) {
+        const data = await apiRequest(
+          `/journeys/journeys/${j.id}/driver_status/`,
+          { token }
+        );
+        updates[j.id] = data;
+      }
+      setStatus(updates);
+    } catch (err) {
+      console.error("Error fetching driver statuses:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (journeys.length === 0) return;
+    fetchStatuses();
+    const interval = setInterval(fetchStatuses, 5000);
+    return () => clearInterval(interval);
+  }, [journeys]);
+
+  // ================== Render ==================
   return (
     <div className="min-h-screen bg-gray-50">
       {/* ===== Header ===== */}
@@ -1344,54 +1491,125 @@ export const DriverDashboard = () => {
         {activeTab === "journeys" && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {Array.isArray(journeys) && journeys.length > 0 ? (
-              journeys.map((journey) => (
-                <div
-                  key={journey.id}
-                  className="bg-white rounded-lg shadow-lg p-6"
-                >
-                  <h3 className="text-lg font-semibold mb-2">
-                    🛣️ {journey.route?.name || journey.route_name}
-                  </h3>
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Bus:</strong>{" "}
-                    {journey.bus?.bus_number || journey.bus_number}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Departure:</strong>{" "}
-                    {new Date(journey.scheduled_departure).toLocaleString()}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Arrival:</strong>{" "}
-                    {new Date(journey.scheduled_arrival).toLocaleString()}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Fare:</strong> UGX{" "}
-                    {Number(journey.fare).toLocaleString()}
-                  </p>
+              journeys.map((journey) => {
+                const routeName =
+                  journey.route?.name || journey.route_name || "N/A";
+                const busNumber =
+                  journey.bus?.bus_number || journey.bus_number || "N/A";
+                const fare = journey.fare
+                  ? Number(journey.fare).toLocaleString()
+                  : "—";
 
-                  <p className="text-sm text-gray-600 mb-1">
-                    <strong>Seats Available:</strong> {journey.available_seats}
-                  </p>
-                  <p className="text-sm text-gray-600 mb-2 capitalize">
-                    <strong>Status:</strong> {journey.status}
-                  </p>
-                  <div className="buttons mt-2 flex gap-2">
-                    <button
-                      className="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600"
-                      onClick={() => markJourneyCompleted(journey.id)}
-                    >
-                      Mark as Completed
-                    </button>
+                const seatInfo = busSummary.find(
+                  (b) => b.journey_id === journey.id
+                );
 
-                    <button
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                      onClick={() => cancelJourney(journey.id)}
-                    >
-                      Cancel Journey
-                    </button>
+                return (
+                  <div
+                    key={journey.id}
+                    className="bg-white rounded-xl shadow-md p-6 border border-gray-100 hover:shadow-lg transition-all duration-200"
+                  >
+                    <h3 className="text-lg font-semibold text-gray-800 mb-2">
+                      🛣️ {routeName}
+                    </h3>
+
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <p>
+                        <strong>Bus:</strong> {busNumber}
+                      </p>
+                      <p>
+                        <strong>Departure:</strong>{" "}
+                        {new Date(journey.scheduled_departure).toLocaleString()}
+                      </p>
+                      <p>
+                        <strong>Arrival:</strong>{" "}
+                        {new Date(journey.scheduled_arrival).toLocaleString()}
+                      </p>
+                      <p>
+                        <strong>Fare:</strong> UGX {fare}
+                      </p>
+
+                      {seatInfo ? (
+                        <div className="mt-2 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                          <p>
+                            <strong>Total Capacity:</strong>{" "}
+                            {seatInfo.total_capacity}
+                          </p>
+                          <p>
+                            <strong>Booked Seats:</strong>{" "}
+                            {seatInfo.booked_seats}
+                          </p>
+                          <p>
+                            <strong>Available Seats:</strong>{" "}
+                            {seatInfo.available_seats}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-gray-500">
+                          Seat info not available
+                        </p>
+                      )}
+
+                      <p className="capitalize mt-2">
+                        <strong>Status:</strong> {journey.status}
+                      </p>
+
+                      {/* ================= Progress Bar ================= */}
+                      {status[journey.id] && (
+                        <div className="mt-4">
+                          <p className="text-sm font-medium text-gray-700 mb-2">
+                            Occupancy:{" "}
+                            {status[journey.id].occupancy_percent.toFixed(1)}%
+                          </p>
+
+                          {/* Progress bar container */}
+                          <div className="w-full bg-gray-300 rounded-full h-4 shadow-inner overflow-hidden">
+                            <div
+                              className={`h-4 rounded-full transition-all duration-700 ease-in-out ${
+                                status[journey.id].occupancy_percent >= 90
+                                  ? "bg-red-600"
+                                  : status[journey.id].occupancy_percent >= 70
+                                  ? "bg-yellow-500"
+                                  : "bg-green-600"
+                              }`}
+                              style={{
+                                width: `${Math.min(
+                                  status[journey.id].occupancy_percent,
+                                  100
+                                )}%`,
+                              }}
+                            ></div>
+                          </div>
+
+                          {/* Tap-in count */}
+                          <p className="text-xs text-gray-600 mt-2 text-right">
+                            {status[journey.id].tapped_in_count} /{" "}
+                            {status[journey.id].total_booked} passengers tapped
+                            in
+                          </p>
+                        </div>
+                      )}
+
+                      {/* ================================================= */}
+                    </div>
+
+                    <div className="mt-4 flex gap-2">
+                      <button
+                        onClick={() => markJourneyCompleted(journey.id)}
+                        className="bg-green-600 text-white px-3 py-1.5 rounded-md hover:bg-green-700"
+                      >
+                        Mark as Completed
+                      </button>
+                      <button
+                        onClick={() => cancelJourney(journey.id)}
+                        className="bg-red-600 text-white px-3 py-1.5 rounded-md hover:bg-red-700"
+                      >
+                        Cancel Journey
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
               <p className="text-gray-600">No journeys assigned for today.</p>
             )}

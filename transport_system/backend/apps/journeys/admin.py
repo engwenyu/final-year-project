@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Journey, NFCTransaction, Booking
+from .models import Journey,  Booking
 
 @admin.register(Journey)
 class JourneyAdmin(admin.ModelAdmin):
@@ -13,44 +13,28 @@ class JourneyAdmin(admin.ModelAdmin):
         'fare',
         'available_seats',
         'created_at',
-        'cancellation_reason'
+        'cancellation_reason',
+        
     )
-    list_filter = ('status', 'scheduled_departure', 'scheduled_arrival', 'created_at')
-    list_filter = ('status', 'route')
+    list_filter = ('status','route', 'scheduled_departure', 'scheduled_arrival', 'created_at')
     autocomplete_fields = ['bus', 'route']
     
-@admin.register(NFCTransaction)
-class NFCTransactionAdmin(admin.ModelAdmin):
-    list_display = (
-        'id',
-        'user',
-        'journey',
-        'bus',
-        'nfc_card_id',
-        'transaction_type',
-        'stop_name',
-        'fare_charged',
-        'timestamp',
-    )
-    list_filter = ('transaction_type', 'timestamp')
-    search_fields = ('user__username', 'nfc_card_id', 'journey__id')
-    ordering = ('-timestamp',)
-
-
 @admin.register(Booking)
 class BookingAdmin(admin.ModelAdmin):
     list_display = (
-        'id',
-        'booking_reference',
-        'user',
-        'journey',
-        'seats_booked',
-        'total_fare',
-        'status',
-        'pickup_stop',
-        'dropoff_stop',
-        'created_at',
+        "id",
+        "booking_reference",
+        "user",
+        "journey",
+        "seats_booked",
+        "available_seats",  # ✅ now stored
+        "total_fare",
+        "status",
+        "pickup_stop",
+        "dropoff_stop",
+        "created_at",
+        "tapped_in"
     )
-    list_filter = ('status', 'created_at')
+    list_filter = ('status', 'created_at','tapped_in')
     search_fields = ('booking_reference', 'user__username', 'journey__id')
     ordering = ('-created_at',)

@@ -11,7 +11,6 @@ from .views import CancelJourneyView
 router = DefaultRouter()
 router.register(r'journeys', JourneyViewSet, basename='journey')
 router.register(r'bookings', BookingViewSet, basename='bookings')
-router.register(r'nfc-transactions', views.NFCTransactionViewSet)
 router.register(r'journeys/bookings', BookingViewSet, basename='booking')
 
 
@@ -20,7 +19,6 @@ urlpatterns = router.urls + [
     path("available/", PassengerAvailableBusesView.as_view(), name="available-journeys"),
     path('active-journeys/', views.ActiveJourneysView.as_view(), name='active-journeys'),
     path('driver-journeys/', DriverJourneysView.as_view(), name='driver-journeys'),
-    path('nfc-checkin/', views.NFCCheckInView.as_view(), name='nfc-checkin'),
     path('<int:pk>/tap-in/', JourneyViewSet.as_view({'post': 'tap_in'}), name='tap-in'),
     path('<int:pk>/tap-out/', JourneyViewSet.as_view({'post': 'tap_out'}), name='tap-out'),
     path('bookings/cancel/', cancel_booking, name='cancel-booking'),

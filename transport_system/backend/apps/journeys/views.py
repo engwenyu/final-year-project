@@ -5,20 +5,23 @@ from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from decimal import Decimal
-from .models import Journey, Booking, NFCTransaction
-from .serializers import JourneySerializer, BookingSerializer, NFCTransactionSerializer
-from apps.payments.models import Transaction, Wallet
+from .models import Journey, Booking
+from .serializers import JourneySerializer, BookingSerializer
 from apps.buses.models import Bus
 import uuid
+from .models import FareSession
 from rest_framework.decorators import api_view, permission_classes
 from apps.routes.models import Route, BusRouteAssignment, Stop
 from django.db import IntegrityError
 from apps.routes.models import Stop
+from django.db.models import Sum
+from rest_framework.authentication import TokenAuthentication
 
 class JourneyViewSet(viewsets.ModelViewSet):
     queryset = Journey.objects.all()
     serializer_class = JourneySerializer
     permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
 
     @action(detail=True, methods=['post'])
     def book(self, request, pk=None):
@@ -33,15 +36,10 @@ class JourneyViewSet(viewsets.ModelViewSet):
 
             # --- Helper: resolve stop name from ID, name, or placeholder ---
             def resolve_stop(value):
-                """Convert stop id, name, or placeholder like 'kampala_23' into a readable stop name."""
                 if not value:
                     return None
-
-                # Special placeholder like kampala_23
                 if isinstance(value, str) and value.lower().startswith("kampala_"):
                     return "Kampala Central"
-
-                # Try lookup by ID
                 try:
                     if str(value).isdigit():
                         stop = Stop.objects.filter(id=int(value)).first()
@@ -49,38 +47,39 @@ class JourneyViewSet(viewsets.ModelViewSet):
                             return stop.name
                 except Exception:
                     pass
-
-                # Try lookup by name
                 stop = Stop.objects.filter(name__iexact=str(value).replace("_", " ")).first()
                 if stop:
                     return stop.name
-
-                # Fallback: return original
                 return str(value)
 
-            # Resolve both stops to readable names
             pickup_stop_name = resolve_stop(pickup)
             dropoff_stop_name = resolve_stop(dropoff)
 
             # --- Compute fares ---
             base_fare = getattr(journey.route, "base_fare", 0)
-            actual_fare_per_seat = None
-
-            if request.data.get("actual_fare_per_seat") is not None:
-                actual_fare_per_seat = float(request.data.get("actual_fare_per_seat"))
+            actual_fare_per_seat = request.data.get("actual_fare_per_seat")
+            if actual_fare_per_seat is not None:
+                actual_fare_per_seat = float(actual_fare_per_seat)
             else:
-                # Optional: compute using Stop fares if available
                 pickup_obj = Stop.objects.filter(name__iexact=pickup_stop_name).first()
                 dropoff_obj = Stop.objects.filter(name__iexact=dropoff_stop_name).first()
                 if pickup_obj and dropoff_obj and hasattr(pickup_obj, "fare") and hasattr(dropoff_obj, "fare"):
                     actual_fare_per_seat = abs(dropoff_obj.fare - pickup_obj.fare)
-
             if actual_fare_per_seat is None:
                 actual_fare_per_seat = float(journey.fare or base_fare or 0)
 
             total_fare = actual_fare_per_seat * seats
 
-            # --- Create Booking ---
+            # --- Compute available seats ---
+            bus_capacity = journey.bus.capacity  # ✅ fetch from bus
+            total_booked = (
+                Booking.objects.filter(journey=journey, status="confirmed")
+                .aggregate(total=Sum("seats_booked"))
+                .get("total") or 0
+            )
+            remaining_seats = max(bus_capacity - total_booked - seats, 0)  # ✅ remaining seats after booking
+
+            # --- Create booking ---
             booking = Booking.objects.create(
                 user=user,
                 journey=journey,
@@ -89,6 +88,7 @@ class JourneyViewSet(viewsets.ModelViewSet):
                 dropoff_stop=dropoff_stop_name,
                 base_fare=base_fare,
                 total_fare=total_fare,
+                available_seats=remaining_seats,  # ✅ save remaining seats
                 status="confirmed",
                 booking_reference=request.data.get("booking_reference") or "",
             )
@@ -103,12 +103,134 @@ class JourneyViewSet(viewsets.ModelViewSet):
             return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+    # 🧩 Custom endpoint for driver seat summary
+    @action(detail=False, methods=["get"], url_path="seat-summary")
+    def seat_summary(self, request):
+        user = request.user
+
+        # ✅ Only drivers can access their bus seat summary
+        if not hasattr(user, "role") or user.role != "driver":
+            return Response({"detail": "Not authorized"}, status=403)
+
+        # Get the bus assigned to this driver
+        bus = getattr(user, "bus", None)
+        if not bus:
+            return Response({"detail": "No bus assigned to this driver"}, status=404)
+
+        # Get total seats for that bus
+        total_seats = getattr(bus, "total_seats", 0)
+
+        # Count booked seats from all confirmed bookings for journeys of this bus
+        booked = (
+            Booking.objects.filter(journey__bus=bus, status="confirmed")
+            .aggregate(total=Sum("seats_booked"))
+            .get("total") or 0
+        )
+
+        remaining = max(total_seats - booked, 0)
+
+        return Response({
+            "bus_number": bus.bus_number,
+            "total_seats": total_seats,
+            "booked_seats": booked,
+            "remaining_seats": remaining,
+        })
+    
+    @action(detail=False, methods=["get"], url_path="driver-bus-summary")
+    def driver_bus_summary(self, request):
+        user = request.user
+        driver_buses = Bus.objects.filter(driver=user)  # get buses assigned to this driver
+
+        summary = []
+
+        for bus in driver_buses:
+            # all journeys of this bus
+            bus_journeys = Journey.objects.filter(bus=bus, status="scheduled")  # or whichever status
+            for journey in bus_journeys:
+                total_booked = (
+                    Booking.objects.filter(journey=journey, status="confirmed")
+                    .aggregate(total=Sum("seats_booked"))
+                    .get("total") or 0
+                )
+                remaining_seats = max(bus.capacity - total_booked, 0)
+                
+                summary.append({
+                    "journey_id": journey.id,
+                    "route_name": journey.route.name if journey.route else str(journey),
+                    "bus_number": bus.bus_number,
+                    "total_capacity": bus.capacity,
+                    "booked_seats": total_booked,
+                    "available_seats": remaining_seats,
+                    "scheduled_departure": journey.scheduled_departure,
+                    "scheduled_arrival": journey.scheduled_arrival,
+                })
+
+        return Response(summary)
+    
+
+    @action(detail=True, methods=['post'])
+    def tap_in(self, request, pk=None):
+        try:
+            journey = self.get_object()
+            user = request.user
+            booking = Booking.objects.filter(user=user, journey=journey, status="confirmed").first()
+            if not booking:
+                return Response({"detail": "No active booking found."}, status=status.HTTP_404_NOT_FOUND)
+
+            booking.tapped_in = True
+            booking.save()
+            return Response({"message": "Tapped in successfully", "tapped_in": True})
+        except Exception as e:
+            print("Tap In Error:", e)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['post'])
+    def tap_out(self, request, pk=None):
+        try:
+            journey = self.get_object()
+            user = request.user
+            booking = Booking.objects.filter(user=user, journey=journey, status="confirmed", tapped_in=True).first()
+            if not booking:
+                return Response({"detail": "No active tapped-in booking found."}, status=status.HTTP_404_NOT_FOUND)
+
+            booking.tapped_in = False
+            booking.status = "completed"
+            booking.save()
+            return Response({"message": "Tapped out successfully", "tapped_in": False})
+        except Exception as e:
+            print("Tap Out Error:", e)
+            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=True, methods=['get'])
+    def driver_status(self, request, pk=None):
+        journey = self.get_object()
+        tapped_in_count = Booking.objects.filter(journey=journey, tapped_in=True).count()
+        total_booked = Booking.objects.filter(journey=journey, status="confirmed").count()
+        return Response({
+            "journey_id": journey.id,
+            "tapped_in_count": tapped_in_count,
+            "total_booked": total_booked,
+            "occupancy_percent": (tapped_in_count / total_booked * 100) if total_booked else 0
+        })
+
 class BookingViewSet(viewsets.ModelViewSet):
     serializer_class = BookingSerializer
 
     def get_queryset(self):
-        # Only show bookings belonging to the logged-in user
-        return Booking.objects.filter(user=self.request.user)
+        return (
+            Booking.objects.filter(user=self.request.user)
+            .select_related("journey__bus", "journey__route")  # ✅ important
+            .order_by("-created_at")
+        )
+
+
+    def get_queryset(self):
+        # Only show bookings for the logged-in user
+        return (
+            Booking.objects.filter(user=self.request.user)
+            .select_related("journey__bus", "journey__route")  # ✅ important
+            .order_by("-created_at")
+        )
     
     # DELETE /journeys/<id>/
     def destroy(self, request, *args, **kwargs):
@@ -175,19 +297,6 @@ class BookingViewSet(viewsets.ModelViewSet):
         return Response({"message": "Booking cancelled successfully"}, status=status.HTTP_200_OK)
 
 
-class NFCTransactionViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = NFCTransaction.objects.all()
-    serializer_class = NFCTransactionSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        if self.request.user.user_type == 'driver':
-            # Driver sees all transactions for their bus
-            return NFCTransaction.objects.filter(bus__driver=self.request.user)
-        else:
-            # Passengers see only their transactions
-            return NFCTransaction.objects.filter(user=self.request.user)
-
 
 class ActiveJourneysView(generics.ListAPIView):
     serializer_class = JourneySerializer
@@ -216,95 +325,6 @@ class DriverJourneysView(generics.ListAPIView):
             .order_by("-scheduled_departure")
         )
 
-
-class NFCCheckInView(generics.CreateAPIView):
-    serializer_class = NFCTransactionSerializer
-    permission_classes = [IsAuthenticated]
-    
-    def post(self, request):
-        nfc_card_id = request.data.get('nfc_card_id')
-        bus_id = request.data.get('bus_id')
-        transaction_type = request.data.get('transaction_type', 'tap_in')
-        
-        # Get user by NFC card
-        try:
-            user = request.user.__class__.objects.get(nfc_card_id=nfc_card_id)
-        except request.user.__class__.DoesNotExist:
-            return Response(
-                {'error': 'Invalid NFC card'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Get bus
-        bus = get_object_or_404(Bus, id=bus_id)
-        
-        # Get active journey for this bus
-        journey = Journey.objects.filter(
-            bus=bus, 
-            status='active',
-            scheduled_departure__date=timezone.now().date()
-        ).first()
-        
-        if not journey:
-            return Response(
-                {'error': 'No active journey for this bus'}, 
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        # Create NFC transaction
-        nfc_transaction = NFCTransaction.objects.create(
-            user=user,
-            journey=journey,
-            bus=bus,
-            nfc_card_id=nfc_card_id,
-            transaction_type=transaction_type,
-            stop_name=request.data.get('stop_name'),
-            latitude=request.data.get('latitude'),
-            longitude=request.data.get('longitude')
-        )
-        
-        # ✅ Deduct fare only on tap_out
-        if transaction_type == 'tap_out':
-            wallet = get_object_or_404(Wallet, user=user)
-            fare = journey.fare
-            
-            if wallet.balance < fare:
-                return Response(
-                    {'error': 'Insufficient wallet balance'}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
-            # Create payment transaction
-            payment_transaction = Transaction.objects.create(
-                user=user,
-                transaction_type='fare_payment',
-                amount=fare,
-                status='completed',
-                reference_id=f"PAY{uuid.uuid4().hex[:8].upper()}",
-                description=f"Fare payment for journey {journey.id}",
-                completed_at=timezone.now()
-            )
-            
-            # Deduct from wallet
-            wallet.balance -= fare
-            wallet.save()
-            
-            # Link payment to NFC transaction
-            nfc_transaction.fare_charged = fare
-            nfc_transaction.payment_transaction = payment_transaction
-            nfc_transaction.save()
-            
-            # 🔑 New: Tell frontend to show rating popup
-            return Response({
-                "message": f"💳 UGX {fare} deducted from wallet",
-                "new_balance": wallet.balance,
-                "transaction": NFCTransactionSerializer(nfc_transaction).data,
-                "show_rating": True  # 👈 frontend should check this
-            }, status=status.HTTP_201_CREATED)
-        
-        # For tap_in, just return the transaction
-        return Response(NFCTransactionSerializer(nfc_transaction).data, 
-                       status=status.HTTP_201_CREATED)
 
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
