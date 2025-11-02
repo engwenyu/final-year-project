@@ -184,3 +184,22 @@ class AdminTopUpWalletAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from django.shortcuts import get_object_or_404
+from .models import Wallet
+from apps.authentication.models import CustomUser as User
+
+class PassengerWalletDetailView(APIView):
+    """Get wallet details for a specific passenger (Admin only)"""
+    permission_classes = [IsAdminUser]
+    
+    def get(self, request, passenger_id):
+        passenger = get_object_or_404(User, id=passenger_id, user_type="passenger")
+        wallet, _ = Wallet.objects.get_or_create(user=passenger)
+        
+        return Response({
+            "balance": float(wallet.balance),
+            "user_id": passenger.id
+        })

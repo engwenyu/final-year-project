@@ -72,6 +72,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "total_fare",
             "status",
             "created_at",
+            'tapped_in'
         ]
         read_only_fields = [
             "booking_reference",
@@ -79,6 +80,7 @@ class BookingSerializer(serializers.ModelSerializer):
             "total_fare",
             "status",
             "created_at",
+            "user"
         ]
 
     def get_available_seats(self, obj):

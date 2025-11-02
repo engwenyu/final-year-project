@@ -1,8 +1,10 @@
+/* eslint-disable no-restricted-globals */
 /* eslint-disable no-undef */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, createContext, useContext } from "react";
 import { FaTrash, FaEdit } from "react-icons/fa";
+import EnhancedPassengersSection from "./EnhancedPassengersSection"; // adjust path
 
 // ✅ API helper
 const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000/api";
@@ -703,17 +705,44 @@ export const PassengerDashboard = () => {
     }
   };
 
+  // Example React onClick
   const handleTapOut = async (journeyId) => {
     try {
-      await apiRequest(`/journeys/journeys/${journeyId}/tap_out/`, {
-        token,
-        method: "POST",
-      });
+      const res = await fetch(
+        `http://127.0.0.1:8000/api/journeys/journeys/${journeyId}/tap_out/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
 
-      // ✅ Immediately update UI
-      updateBookingTappedIn(journeyId, false);
+      const data = await res.json();
+
+      if (res.ok) {
+        alert(
+          `✅ Tap Out Successful!\n\n` +
+            `Fare Charged: UGX ${data.fare_charged}\n` +
+            `New Balance: UGX ${data.new_balance}`
+        );
+
+        // ✅ Refresh wallet AND bookings immediately
+        await fetchWalletAndBookings();
+      } else {
+        // Handle specific error cases
+        if (data.detail?.includes("Insufficient balance")) {
+          alert(
+            "❌ Insufficient Balance\n\nPlease top up your wallet to complete this journey."
+          );
+        } else {
+          alert(`❌ Error: ${data.detail || "Tap out failed"}`);
+        }
+      }
     } catch (err) {
-      console.error("Tap Out Error:", err);
+      console.error("Tap out error:", err);
+      alert("❌ Network error. Please check your connection and try again.");
     }
   };
 
@@ -1242,22 +1271,24 @@ export const PassengerDashboard = () => {
 
                         {booking.status === "confirmed" && (
                           <button
-                            onClick={() =>
+                            onClick={(e) =>
                               booking.tapped_in
                                 ? handleTapOut(
-                                    booking.journey?.id || booking.journey_id
+                                    booking.journey?.id || booking.journey_id,
+                                    e
                                   )
                                 : handleTapIn(
-                                    booking.journey?.id || booking.journey_id
+                                    booking.journey?.id || booking.journey_id,
+                                    e
                                   )
                             }
                             className={`px-4 py-2 rounded text-white ${
                               booking.tapped_in
-                                ? "bg-blue-600 hover:bg-blue-700"
-                                : "bg-green-600 hover:bg-green-700"
+                                ? "bg-orange-600 hover:bg-orange-700"
+                                : "bg-blue-600 hover:bg-blue-700"
                             }`}
                           >
-                            {booking.tapped_in ? "Tapped In" : "Tap In"}
+                            {booking.tapped_in ? "Tap Out" : "Tap In"}
                           </button>
                         )}
                       </div>
@@ -1286,6 +1317,52 @@ export const DriverDashboard = () => {
   const [lastPassengerCounts, setLastPassengerCounts] = useState({});
   const [busSummary, setBusSummary] = useState([]);
   const token = localStorage.getItem("token");
+  const [walletBalance, setWalletBalance] = useState(0);
+  // Fetch wallet and bookings on load
+  useEffect(() => {
+    fetchWalletAndBookings();
+  }, []);
+
+  const fetchWalletAndBookings = async () => {
+    try {
+      // 1️⃣ Fetch wallet balance
+      const walletData = await apiRequest("/payments/wallet/", { token });
+      setWalletBalance(walletData.balance || 0);
+
+      // 2️⃣ Fetch all bookings for this user
+      const bookingsData = await apiRequest("/journeys/bookings/", { token });
+      const allBookings = bookingsData.results || bookingsData || [];
+
+      // 3️⃣ Normalize the data for consistent use in UI
+      const normalizedBookings = allBookings.map((b) => ({
+        id: b.id,
+        booking_reference: b.booking_reference,
+        status: b.status,
+        seats_booked: b.seats_booked,
+        total_fare: b.total_fare,
+        base_fare: b.base_fare, // ✅ added
+        pickup_stop: b.pickup_stop,
+        dropoff_stop: b.dropoff_stop,
+        created_at: b.created_at,
+        journey: {
+          id: b.journey?.id,
+          route_name: b.journey?.route_name || b.route_name,
+          bus_number: b.journey?.bus?.bus_number || b.bus_number,
+          scheduled_departure: b.journey?.scheduled_departure,
+          scheduled_arrival: b.journey?.scheduled_arrival,
+        },
+      }));
+
+      // 4️⃣ Filter out cancelled bookings if you want only active ones
+      const activeBookings = normalizedBookings.filter(
+        (b) => b.status !== "cancelled"
+      );
+
+      setBookings(activeBookings);
+    } catch (err) {
+      console.error("❌ Error fetching wallet/bookings:", err);
+    }
+  };
 
   // ================== Fetch Bus Summary ==================
   useEffect(() => {
@@ -1448,6 +1525,9 @@ export const DriverDashboard = () => {
             <div className="flex items-center space-x-4">
               <div className="text-sm text-gray-600">
                 Welcome, {user?.first_name || "Driver"}
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+                  💰 UGX {walletBalance.toLocaleString()}
+                </span>
               </div>
               <button
                 onClick={logout}
@@ -1747,6 +1827,8 @@ export const AdminDashboard = () => {
 
       if (activeTab === "passengers") {
         const data = await apiRequest("/auth/passengers/", { token });
+        console.log("🔍 RAW PASSENGER DATA:", data);
+        console.log("🔍 FIRST PASSENGER:", data.results?.[0] || data[0]);
         setPassengers(data.results || data);
       }
 
@@ -2196,50 +2278,13 @@ export const AdminDashboard = () => {
 
         {/* Passengers */}
         {activeTab === "passengers" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {passengers.map((p) => {
-              // fallback if wallet object is missing
-              const walletBalance = p.wallet?.balance ?? 0;
-
-              return (
-                <div
-                  key={p.id}
-                  className="bg-white rounded-xl shadow p-5 hover:shadow-lg transition flex flex-col justify-between"
-                >
-                  <div>
-                    <h3 className="font-bold text-lg">
-                      {p.first_name} {p.last_name}
-                    </h3>
-                    <p className="text-gray-600">{p.email}</p>
-                    <p className="text-gray-600">📞 {p.phone_number}</p>
-                    <p className="mt-1 text-gray-700">
-                      Wallet: UGX {Number(walletBalance).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="mt-3 flex space-x-2">
-                    <input
-                      type="number"
-                      placeholder="Top-up"
-                      className="border px-2 py-1 rounded flex-1"
-                      value={topupAmounts[p.id] || ""}
-                      onChange={(e) =>
-                        setTopupAmounts({
-                          ...topupAmounts,
-                          [p.id]: e.target.value,
-                        })
-                      }
-                    />
-                    <button
-                      className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
-                      onClick={() => topupWallet(p.id, topupAmounts[p.id])} // <-- same as before
-                    >
-                      Top Up
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <EnhancedPassengersSection
+            passengers={passengers}
+            topupAmounts={topupAmounts}
+            setTopupAmounts={setTopupAmounts}
+            topupWallet={topupWallet}
+            token={token}
+          />
         )}
 
         {/* Buses */}

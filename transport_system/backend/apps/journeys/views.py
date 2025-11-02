@@ -16,6 +16,8 @@ from django.db import IntegrityError
 from apps.routes.models import Stop
 from django.db.models import Sum
 from rest_framework.authentication import TokenAuthentication
+from apps.payments.models import Transaction
+from django.db import transaction
 
 class JourneyViewSet(viewsets.ModelViewSet):
     queryset = Journey.objects.all()
@@ -78,6 +80,12 @@ class JourneyViewSet(viewsets.ModelViewSet):
                 .get("total") or 0
             )
             remaining_seats = max(bus_capacity - total_booked - seats, 0)  # ✅ remaining seats after booking
+
+            user = request.user
+
+            # Ensure only passengers can book
+            if hasattr(user, 'role') and user.role != 'passenger':
+             return Response({"error": "Only passengers can book"}, status=403)
 
             # --- Create booking ---
             booking = Booking.objects.create(
@@ -173,33 +181,128 @@ class JourneyViewSet(viewsets.ModelViewSet):
         try:
             journey = self.get_object()
             user = request.user
+            # Only confirmed bookings
             booking = Booking.objects.filter(user=user, journey=journey, status="confirmed").first()
             if not booking:
-                return Response({"detail": "No active booking found."}, status=status.HTTP_404_NOT_FOUND)
+                return Response({"detail": "No active booking found."}, status=404)
 
             booking.tapped_in = True
+            # Ensure status stays confirmed
+            booking.status = "confirmed"
             booking.save()
+
             return Response({"message": "Tapped in successfully", "tapped_in": True})
         except Exception as e:
             print("Tap In Error:", e)
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response({"detail": str(e)}, status=500)
+
+
+
+    import uuid  # Add this at the top of your file
+    from django.db import transaction
+    from django.utils import timezone
 
     @action(detail=True, methods=['post'])
     def tap_out(self, request, pk=None):
         try:
             journey = self.get_object()
             user = request.user
-            booking = Booking.objects.filter(user=user, journey=journey, status="confirmed", tapped_in=True).first()
-            if not booking:
-                return Response({"detail": "No active tapped-in booking found."}, status=status.HTTP_404_NOT_FOUND)
 
-            booking.tapped_in = False
-            booking.status = "completed"
-            booking.save()
-            return Response({"message": "Tapped out successfully", "tapped_in": False})
+            # 🔍 Debug: Check all bookings for this user and journey
+            all_bookings = Booking.objects.filter(user=user, journey=journey)
+            print(f"=== DEBUG: All bookings for user {user.username} on journey {journey.id} ===")
+            for b in all_bookings:
+                print(f"Booking {b.id}: status={b.status}, tapped_in={b.tapped_in}")
+
+
+            booking = Booking.objects.filter(
+                user=user, journey=journey, status="confirmed", tapped_in=True
+            ).first()
+
+            if not booking:
+                return Response(
+                    {"detail": "No active tapped-in booking found."},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+            total_fare = booking.total_fare
+
+            # Add safety checks
+            try:
+                passenger_wallet = user.wallet
+                driver_wallet = journey.bus.driver.wallet
+            except AttributeError as e:
+                return Response(
+                    {"detail": "Wallet configuration error. Please contact support."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+            # ---------- Atomic Transaction ----------
+            with transaction.atomic():
+                # Refresh from DB to avoid race conditions
+                passenger_wallet.refresh_from_db()
+                driver_wallet.refresh_from_db()
+
+                if passenger_wallet.balance < total_fare:
+                    return Response(
+                        {
+                            "detail": "Insufficient balance in passenger wallet",
+                            "required": float(total_fare),
+                            "current_balance": float(passenger_wallet.balance)
+                        },
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Deduct from passenger
+                passenger_wallet.balance -= total_fare
+                passenger_wallet.save()
+
+                # Add to driver
+                driver_wallet.balance += total_fare
+                driver_wallet.save()
+
+                # Log transaction for passenger (deduction)
+                Transaction.objects.create(
+                    user=user,
+                    transaction_type="fare_payment",
+                    amount=total_fare,
+                    status="completed",
+                    reference_id=f"FARE-{uuid.uuid4().hex[:12].upper()}",
+                    description=f"Fare paid for journey {journey.id}",
+                    completed_at=timezone.now()
+                )
+
+                # Log transaction for driver (receipt)
+                Transaction.objects.create(
+                    user=journey.bus.driver,
+                    transaction_type="fare_payment",
+                    amount=total_fare,
+                    status="completed",
+                    reference_id=f"RECV-{uuid.uuid4().hex[:12].upper()}",
+                    description=f"Fare received from {user.username} for journey {journey.id}",
+                    completed_at=timezone.now()
+                )
+
+                # Mark booking as completed
+                booking.tapped_in = False
+                booking.status = "completed"
+                booking.save()
+
+            return Response({
+                "message": "Tapped out successfully, fare deducted",
+                "tapped_in": False,
+                "fare_charged": float(total_fare),
+                "new_balance": float(passenger_wallet.balance)
+            }, status=status.HTTP_200_OK)
+
         except Exception as e:
             print("Tap Out Error:", e)
-            return Response({"detail": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            import traceback
+            traceback.print_exc()
+            return Response(
+                {"detail": "An unexpected error occurred"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['get'])
     def driver_status(self, request, pk=None):

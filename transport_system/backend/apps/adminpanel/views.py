@@ -4,11 +4,13 @@ from rest_framework.permissions import IsAdminUser
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 from apps.buses.models import Bus
-from apps.journeys.models import Journey
 from apps.authentication.models import CustomUser as User
 from apps.payments.models import Wallet, Transaction
 import uuid
 from django.utils import timezone
+from django.db.models import Sum, Count, Q
+from apps.journeys.models import Journey, Booking
+from decimal import Decimal
 
 
 # ========================= BUSES =========================
@@ -49,13 +51,6 @@ class AdminBusesView(APIView):
         bus.delete()
         return Response({"message": "Bus deleted"}, status=status.HTTP_200_OK)
 
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework.permissions import IsAdminUser
-from django.shortcuts import get_object_or_404
-from apps.authentication.models import CustomUser as User
-
 class AssignDriverToBusView(APIView):
     permission_classes = [IsAdminUser]
 
@@ -79,7 +74,6 @@ class AssignDriverToBusView(APIView):
         return Response(
             {"message": f"Driver {driver.first_name} assigned to Bus {bus.bus_number}"}
         )
-
 
 class UnassignDriverView(APIView):
     permission_classes = [IsAdminUser]
@@ -121,26 +115,58 @@ class AdminDriversView(APIView):
         return Response({"message": "Driver deleted"}, status=status.HTTP_200_OK)
 
 
-# ========================= PASSENGERS =========================
+# ========================= PASSENGERS (ENHANCED) =========================
 class AdminPassengersView(APIView):
     permission_classes = [IsAdminUser]
 
     def get(self, request):
+        """Enhanced passenger list with detailed statistics"""
         passengers = User.objects.filter(user_type="passenger")
-        data = []
+        
+        passenger_data = []
+        total_revenue = 0
+        
         for p in passengers:
             wallet, _ = Wallet.objects.get_or_create(user=p)
-            data.append(
-                {
-                    "id": p.id,
-                    "first_name": p.first_name,
-                    "last_name": p.last_name,
-                    "email": p.email,
-                    "phone_number": p.phone_number,
-                    "wallet_balance": wallet.balance,
-                }
-            )
-        return Response(data)
+            
+            # Get booking statistics
+            bookings = Booking.objects.filter(user=p)
+            total_bookings = bookings.count()
+            total_spent = bookings.filter(status='completed').aggregate(
+                total=Sum('total_fare')
+            )['total'] or 0
+            
+            # Get last booking
+            last_booking = bookings.order_by('-created_at').first()
+            
+            passenger_data.append({
+                "id": p.id,
+                "first_name": p.first_name,
+                "last_name": p.last_name,
+                "email": p.email,
+                "phone_number": p.phone_number,
+                "wallet": {
+                    "balance": float(wallet.balance)
+                },
+                "total_bookings": total_bookings,
+                "total_spent": float(total_spent),
+                "last_booking": last_booking.created_at.isoformat() if last_booking else None,
+                "status": "active" if p.is_active else "inactive",
+                "joined": p.date_joined.isoformat(),
+            })
+            
+            total_revenue += float(total_spent)
+        
+        # Calculate overall statistics
+        total_passengers = passengers.count()
+        active_passengers = passengers.filter(is_active=True).count()
+        
+        return Response({
+            "total_passengers": total_passengers,
+            "active_passengers": active_passengers,
+            "total_revenue": total_revenue,
+            "results": passenger_data
+        })
 
     def post(self, request):
         data = request.data
@@ -153,10 +179,102 @@ class AdminPassengersView(APIView):
             user_type="passenger",
             phone_number=data.get("phone_number"),
         )
-        # Optional: create wallet
+        # Create wallet
         Wallet.objects.create(user=passenger, balance=0)
-        return Response({"id": passenger.id, "message": "Passenger created"}, status=status.HTTP_201_CREATED)
+        return Response(
+            {"id": passenger.id, "message": "Passenger created"}, 
+            status=status.HTTP_201_CREATED
+        )
 
+
+class AdminPassengerDetailView(APIView):
+    """Get detailed information about a specific passenger"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, passenger_id):
+        passenger = get_object_or_404(User, id=passenger_id, user_type="passenger")
+        wallet, _ = Wallet.objects.get_or_create(user=passenger)
+        
+        # Get booking statistics
+        bookings = Booking.objects.filter(user=passenger)
+        total_bookings = bookings.count()
+        total_spent = bookings.filter(status='completed').aggregate(
+            total=Sum('total_fare')
+        )['total'] or 0
+        
+        # Get last booking
+        last_booking = bookings.order_by('-created_at').first()
+        
+        return Response({
+            "id": passenger.id,
+            "first_name": passenger.first_name,
+            "last_name": passenger.last_name,
+            "email": passenger.email,
+            "phone_number": passenger.phone_number,
+            "wallet_balance": float(wallet.balance),
+            "total_bookings": total_bookings,
+            "total_spent": float(total_spent),
+            "last_booking": last_booking.created_at.isoformat() if last_booking else None,
+            "status": "active" if passenger.is_active else "inactive",
+            "joined": passenger.date_joined.isoformat(),
+        })
+
+
+class AdminPassengerBookingsView(APIView):
+    """Get booking history for a specific passenger"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, passenger_id):
+        passenger = get_object_or_404(User, id=passenger_id, user_type="passenger")
+        bookings = Booking.objects.filter(user=passenger).order_by('-created_at')
+        
+        booking_data = []
+        for booking in bookings:
+            # Try to get route name from journey
+            route_name = "Unknown Route"
+            if hasattr(booking, 'journey') and booking.journey:
+                if hasattr(booking.journey, 'route') and booking.journey.route:
+                    route_name = booking.journey.route.name
+            
+            booking_data.append({
+                'id': booking.id,
+                'route': route_name,
+                'date': booking.created_at.strftime('%Y-%m-%d'),
+                'fare': float(booking.total_fare),
+                'status': booking.status,
+                'seats_booked': booking.seats_booked,
+                'booking_reference': booking.booking_reference,
+            })
+        
+        return Response(booking_data)
+
+
+class AdminPassengerTransactionsView(APIView):
+    """Get transaction history for a specific passenger"""
+    permission_classes = [IsAdminUser]
+
+    def get(self, request, passenger_id):
+        passenger = get_object_or_404(User, id=passenger_id, user_type="passenger")
+        transactions = Transaction.objects.filter(user=passenger).order_by('-created_at')
+        
+        transaction_data = []
+        for txn in transactions:
+            # Make fare payments negative for display
+            amount = float(txn.amount)
+            if txn.transaction_type == 'fare_payment':
+                amount = -amount
+            
+            transaction_data.append({
+                'id': txn.id,
+                'type': txn.transaction_type,
+                'amount': amount,
+                'date': txn.created_at.strftime('%Y-%m-%d'),
+                'status': txn.status,
+                'description': txn.description or '',
+                'reference_id': txn.reference_id,
+            })
+        
+        return Response(transaction_data)
 
 # ========================= JOURNEYS =========================
 class AdminJourneysView(APIView):
@@ -254,9 +372,6 @@ class AdminWalletTopupView(APIView):
         return Response({"new_balance": wallet.balance}, status=status.HTTP_200_OK)
 
 from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from apps.buses.models import Bus
-from apps.journeys.models import Journey
 from apps.authentication.models import CustomUser  # <- import your user model
 
 @api_view(['GET'])
