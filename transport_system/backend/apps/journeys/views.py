@@ -315,6 +315,30 @@ class JourneyViewSet(viewsets.ModelViewSet):
             "total_booked": total_booked,
             "occupancy_percent": (tapped_in_count / total_booked * 100) if total_booked else 0
         })
+    
+    @action(detail=True, methods=['get'])
+    def ratings(self, request, pk=None):
+        """Get all ratings for a journey"""
+        journey = self.get_object()
+    
+        # Replace 'Rating' with your actual model name
+        from .models import Rating  # or JourneyRating or whatever your model is called
+    
+        ratings = Rating.objects.filter(journey=journey).select_related('user')
+    
+        ratings_data = [{
+            'id': r.id,
+            'rating': r.rating,
+            'driver_rating': getattr(r, 'driver_rating', r.rating),  # adjust based on your model
+            'bus_rating': getattr(r, 'bus_rating', r.rating),
+            'service_rating': getattr(r, 'service_rating', r.rating),
+            'overall_rating': getattr(r, 'overall_rating', r.rating),
+            'comment': r.comment,
+            'user_name': r.user.get_full_name() or r.user.username,
+            'created_at': r.created_at.isoformat()
+        } for r in ratings]
+    
+        return Response(ratings_data)
 
 class BookingViewSet(viewsets.ModelViewSet):
     serializer_class = BookingSerializer

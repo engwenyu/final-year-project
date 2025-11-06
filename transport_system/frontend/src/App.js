@@ -2,10 +2,16 @@
 /* eslint-disable no-undef */
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
-import React, { useState, useEffect, createContext, useContext } from "react";
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useRef,
+  useContext,
+} from "react";
 import { FaTrash, FaEdit } from "react-icons/fa";
 import EnhancedPassengersSection from "./EnhancedPassengersSection"; // adjust path
-
+import { TrendingUp, DollarSign, Calendar, Clock, Award, ArrowUp, ArrowDown } from 'lucide-react';
 // ✅ API helper
 const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000/api";
 const API_BASE_URL = "http://localhost:8000/api";
@@ -324,59 +330,647 @@ const SignupPage = ({ onSwitch }) => {
 };
 
 // ================= RATING MODAL =================
-const RatingModal = ({ isOpen, onClose, journeyId }) => {
-  const [rating, setRating] = useState(0);
+const RatingModal = ({ isOpen, onClose, onSubmit, booking }) => {
+  const [driverRating, setDriverRating] = useState(0);
+  const [busRating, setBusRating] = useState(0);
+  const [serviceRating, setServiceRating] = useState(0);
   const [comment, setComment] = useState("");
 
   if (!isOpen) return null;
 
-  const handleSubmit = async () => {
-    try {
-      await apiRequest(`/ratings/`, {
-        method: "POST",
-        body: { journey: journeyId, rating, comment },
-        token: localStorage.getItem("token"),
-      });
-      alert("✅ Thank you for your rating!");
-      onClose();
-    } catch (err) {
-      console.error(err);
-      alert("❌ Failed to submit rating");
+  const handleSubmit = (e) => {
+    e.preventDefault();
+
+    if (driverRating === 0 || busRating === 0 || serviceRating === 0) {
+      alert("Please provide all ratings");
+      return;
     }
+
+    onSubmit({
+      driver_rating: driverRating,
+      bus_rating: busRating,
+      service_rating: serviceRating,
+      comment: comment,
+    });
   };
 
+  const StarRating = ({ rating, setRating, label }) => (
+    <div className="mb-4">
+      <label className="block text-sm font-medium text-gray-700 mb-2">
+        {label}
+      </label>
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setRating(star)}
+            className="text-3xl focus:outline-none"
+          >
+            {star <= rating ? "⭐" : "☆"}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
-      <div className="bg-white p-6 rounded shadow-lg w-96">
-        <h2 className="text-xl font-bold mb-4">Rate Your Journey</h2>
-        <label className="block mb-2">Rating (1-5):</label>
-        <input
-          type="number"
-          min="1"
-          max="5"
-          value={rating}
-          onChange={(e) => setRating(Number(e.target.value))}
-          className="border px-2 py-1 w-full rounded mb-4"
-        />
-        <label className="block mb-2">Comment:</label>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          className="border px-2 py-1 w-full rounded mb-4"
-        />
-        <div className="flex justify-end space-x-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSubmit}
-            className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-          >
-            Submit
-          </button>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h2 className="text-2xl font-bold mb-4">Rate Your Journey</h2>
+
+        <form onSubmit={handleSubmit}>
+          <StarRating
+            rating={driverRating}
+            setRating={setDriverRating}
+            label="Driver Rating"
+          />
+
+          <StarRating
+            rating={busRating}
+            setRating={setBusRating}
+            label="Bus Condition Rating"
+          />
+
+          <StarRating
+            rating={serviceRating}
+            setRating={setServiceRating}
+            label="Service Rating"
+          />
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Comments (Optional)
+            </label>
+            <textarea
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md"
+              rows="3"
+              placeholder="Share your experience..."
+            />
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Submit Rating
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Leaflet Map Component for Bus Tracking
+
+const BusTrackingMap = ({ booking }) => {
+  const mapRef = useRef(null);
+  const mapInstanceRef = useRef(null);
+  const busMarkerRef = useRef(null);
+  const animationRef = useRef(null);
+
+  const [routeStops, setRouteStops] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [currentLocation, setCurrentLocation] = useState("");
+  const [eta, setEta] = useState("");
+  const [distance, setDistance] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
+  const [leafletLoaded, setLeafletLoaded] = useState(false);
+
+  const didFetchStopsRef = useRef(false);
+  const didLoadLeafletRef = useRef(false);
+
+  // Generate coordinates for stops that don't have them
+  const addCoordinatesToStops = (stops) => {
+    // Check if stops already have coordinates
+    const hasCoordinates = stops.every((s) => s.latitude && s.longitude);
+    if (hasCoordinates) {
+      console.log("✅ All stops have coordinates");
+      return stops;
+    }
+
+    console.log(
+      "⚠️ Some stops missing coordinates, generating demo coordinates"
+    );
+
+    // Base coordinates (Kampala area)
+    const startLat = 0.3476;
+    const startLng = 32.5825;
+
+    // Generate coordinates along a line
+    return stops.map((stop, index) => {
+      // If stop already has coordinates, use them
+      if (stop.latitude && stop.longitude) {
+        return stop;
+      }
+
+      // Generate coordinates based on stop order
+      const latOffset = index * 0.02; // ~2km per stop
+      const lngOffset = index * 0.015;
+
+      return {
+        ...stop,
+        latitude: startLat + latOffset,
+        longitude: startLng + lngOffset,
+      };
+    });
+  };
+
+  // Load Leaflet library first
+  useEffect(() => {
+    if (didLoadLeafletRef.current || window.L) {
+      setLeafletLoaded(true);
+      return;
+    }
+
+    didLoadLeafletRef.current = true;
+
+    try {
+      if (!document.querySelector('link[href*="leaflet.css"]')) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+        link.crossOrigin = "anonymous";
+        document.head.appendChild(link);
+      }
+
+      if (!document.querySelector('script[src*="leaflet.js"]')) {
+        const script = document.createElement("script");
+        script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+        script.crossOrigin = "anonymous";
+        script.onload = () => {
+          console.log("✅ Leaflet loaded successfully");
+          setLeafletLoaded(true);
+        };
+        script.onerror = (err) => {
+          console.error("❌ Failed to load Leaflet:", err);
+          setError("Failed to load map library");
+        };
+        document.body.appendChild(script);
+      } else {
+        setLeafletLoaded(true);
+      }
+    } catch (err) {
+      console.error("❌ Error loading Leaflet:", err);
+      setError("Failed to initialize map");
+    }
+  }, []);
+
+  // Fetch stops
+  useEffect(() => {
+    if (didFetchStopsRef.current) return;
+    didFetchStopsRef.current = true;
+
+    const fetchStopsForJourney = async () => {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+
+      console.log("🔍 Full booking object:", booking);
+
+      const journeyId = booking?.journey?.id;
+
+      if (!journeyId) {
+        setError("No journey ID found");
+        setLoading(false);
+        return;
+      }
+
+      try {
+        console.log(`📡 Fetching journey ${journeyId} details...`);
+        const journeyData = await apiRequest(
+          `/journeys/journeys/${journeyId}/`,
+          { token }
+        );
+
+        console.log("✅ Journey data:", journeyData);
+
+        const routeId = journeyData.route_id || journeyData.route;
+
+        if (!routeId) {
+          setError("No route ID found in journey");
+          setLoading(false);
+          return;
+        }
+
+        console.log(`📡 Found route ID: ${routeId}, fetching stops...`);
+
+        const stopsData = await apiRequest(`/routes/${routeId}/stops/`, {
+          token,
+        });
+
+        let stopsList = stopsData.results || stopsData || [];
+
+        console.log(`✅ Fetched ${stopsList.length} stops:`, stopsList);
+
+        if (!stopsList.length) {
+          setError("No stops found for this route");
+          setLoading(false);
+          return;
+        }
+
+        // Sort by stop_order
+        stopsList.sort((a, b) => (a.stop_order || 0) - (b.stop_order || 0));
+
+        // Check if Kampala stop exists
+        const hasKampalaStop = stopsList.some((stop) =>
+          (stop.stop_name || stop.name)?.toLowerCase().includes("kampala")
+        );
+
+        if (!hasKampalaStop) {
+          const kampalaStop = {
+            id: `kampala_${routeId}`,
+            stop_name: "Kampala Central",
+            name: "Kampala Central",
+            distance_from_start: 0,
+            fare: 0,
+            latitude: 0.3476,
+            longitude: 32.5825,
+            stop_order: 0,
+          };
+          stopsList = [kampalaStop, ...stopsList];
+        }
+
+        // Add coordinates to stops that don't have them
+        const stopsWithCoordinates = addCoordinatesToStops(stopsList);
+
+        console.log("✅ Final stops with coordinates:", stopsWithCoordinates);
+        setRouteStops(stopsWithCoordinates);
+      } catch (err) {
+        console.error("❌ Error fetching route data:", err);
+        setError(`Failed to load route: ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStopsForJourney();
+  }, [booking]);
+
+  // Initialize map
+  useEffect(() => {
+    if (
+      !routeStops.length ||
+      loading ||
+      !leafletLoaded ||
+      !window.L ||
+      !mapRef.current
+    ) {
+      return;
+    }
+
+    console.log("🗺️ Initializing map with stops:", routeStops);
+
+    try {
+      const L = window.L;
+
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
+
+      // Validate first stop has coordinates
+      if (!routeStops[0]?.latitude || !routeStops[0]?.longitude) {
+        throw new Error("First stop missing coordinates");
+      }
+
+      const map = L.map(mapRef.current).setView(
+        [routeStops[0].latitude, routeStops[0].longitude],
+        10
+      );
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap contributors",
+        maxZoom: 19,
+      }).addTo(map);
+
+      // Filter out stops without valid coordinates
+      const validStops = routeStops.filter(
+        (s) =>
+          s.latitude !== undefined &&
+          s.latitude !== null &&
+          s.longitude !== undefined &&
+          s.longitude !== null &&
+          !isNaN(s.latitude) &&
+          !isNaN(s.longitude)
+      );
+
+      console.log(
+        `✅ Valid stops with coordinates: ${validStops.length}/${routeStops.length}`
+      );
+
+      if (validStops.length < 2) {
+        throw new Error("Not enough stops with valid coordinates");
+      }
+
+      const latLngs = validStops.map((s) => [s.latitude, s.longitude]);
+
+      L.polyline(latLngs, { color: "#3b82f6", weight: 4, opacity: 0.7 }).addTo(
+        map
+      );
+
+      if (latLngs.length > 1) {
+        map.fitBounds(latLngs, { padding: [50, 50] });
+      }
+
+      // Add stop markers
+      validStops.forEach((stop, i) => {
+        const isStart = i === 0;
+        const isEnd = i === validStops.length - 1;
+        const color = isStart ? "#10b981" : isEnd ? "#ef4444" : "#6b7280";
+
+        L.circleMarker([stop.latitude, stop.longitude], {
+          radius: 8,
+          fillColor: color,
+          color: "#fff",
+          weight: 2,
+          fillOpacity: 0.8,
+        })
+          .bindPopup(
+            `<b>${stop.stop_name || stop.name}</b><br>` +
+              `${isStart ? "Start" : isEnd ? "End" : `Stop ${i + 1}`}<br>` +
+              `Fare: UGX ${Number(stop.fare || 0).toLocaleString()}`
+          )
+          .addTo(map);
+      });
+
+      // Bus marker
+      const busMarker = L.marker(
+        [validStops[0].latitude, validStops[0].longitude],
+        {
+          icon: L.divIcon({
+            html: '<div style="font-size: 30px;">🚌</div>',
+            className: "bus-marker",
+            iconSize: [40, 40],
+            iconAnchor: [20, 20],
+          }),
+          zIndexOffset: 1000,
+        }
+      ).addTo(map);
+
+      busMarker.bindPopup(
+        `<b>Bus ${booking?.journey?.bus_number || "N/A"}</b><br>` +
+          `Route: ${booking?.journey?.route_name || "N/A"}<br>` +
+          `Status: En Route`
+      );
+
+      mapInstanceRef.current = map;
+      busMarkerRef.current = busMarker;
+
+      console.log("✅ Map initialized successfully");
+
+      // Animate bus
+      const animateBus = () => {
+        const duration = 60000;
+        const startTime = Date.now();
+
+        const animate = () => {
+          try {
+            const elapsed = Date.now() - startTime;
+            const prog = Math.min(elapsed / duration, 1);
+            const segmentCount = validStops.length - 1;
+            const currentSegmentFloat = prog * segmentCount;
+            const currentSegment = Math.floor(currentSegmentFloat);
+            const segmentProg = currentSegmentFloat - currentSegment;
+
+            if (currentSegment < segmentCount) {
+              const start = validStops[currentSegment];
+              const end = validStops[currentSegment + 1];
+              const lat =
+                start.latitude + (end.latitude - start.latitude) * segmentProg;
+              const lng =
+                start.longitude +
+                (end.longitude - start.longitude) * segmentProg;
+
+              if (busMarkerRef.current) {
+                busMarkerRef.current.setLatLng([lat, lng]);
+              }
+
+              setCurrentLocation(
+                segmentProg < 0.5
+                  ? `Near ${start.stop_name || start.name}`
+                  : `Approaching ${end.stop_name || end.name}`
+              );
+
+              const destination = validStops[validStops.length - 1];
+              const R = 6371;
+              const dLat = ((destination.latitude - lat) * Math.PI) / 180;
+              const dLon = ((destination.longitude - lng) * Math.PI) / 180;
+              const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos((lat * Math.PI) / 180) *
+                  Math.cos((destination.latitude * Math.PI) / 180) *
+                  Math.sin(dLon / 2) *
+                  Math.sin(dLon / 2);
+              const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+              const distKm = R * c;
+
+              setDistance(Math.round(distKm));
+
+              const remainingMin = Math.round((1 - prog) * (duration / 60000));
+              setEta(
+                remainingMin > 0 ? `${remainingMin} min` : "Arriving soon"
+              );
+              setProgress(Math.round(prog * 100));
+            }
+
+            if (prog < 1) {
+              animationRef.current = requestAnimationFrame(animate);
+            } else {
+              setCurrentLocation(
+                `Arrived at ${validStops[validStops.length - 1].stop_name}`
+              );
+              setEta("Arrived");
+              setDistance(0);
+            }
+          } catch (err) {
+            console.error("❌ Animation error:", err);
+          }
+        };
+
+        animate();
+      };
+
+      animateBus();
+    } catch (err) {
+      console.error("❌ Error initializing map:", err);
+      setError(`Map initialization failed: ${err.message}`);
+    }
+
+    return () => {
+      try {
+        if (animationRef.current) {
+          cancelAnimationFrame(animationRef.current);
+        }
+        if (mapInstanceRef.current) {
+          mapInstanceRef.current.remove();
+          mapInstanceRef.current = null;
+        }
+      } catch (err) {
+        console.error("❌ Cleanup error:", err);
+      }
+    };
+  }, [routeStops, loading, leafletLoaded, booking]);
+
+  if (!leafletLoaded) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading map library...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading route map...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-red-50 rounded-lg border-2 border-red-200">
+        <div className="text-center p-6">
+          <div className="text-4xl mb-4">⚠️</div>
+          <p className="text-red-800 font-semibold mb-2">Unable to Load Map</p>
+          <p className="text-red-600 text-sm">{error}</p>
+          <p className="text-xs text-gray-500 mt-2">
+            Check console for details
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!routeStops.length) {
+    return (
+      <div className="flex items-center justify-center h-96 bg-gray-100 rounded-lg">
+        <p className="text-gray-600">No stops found for this route</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Route Info */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h3 className="font-bold text-lg mb-2">
+          {booking?.journey?.route_name || "Route"}
+        </h3>
+        <p className="text-sm text-gray-600">
+          Bus Number:{" "}
+          <span className="font-semibold">
+            {booking?.journey?.bus_number || "N/A"}
+          </span>
+        </p>
+        <p className="text-sm text-gray-600">
+          From:{" "}
+          <span className="font-semibold text-green-600">
+            {booking?.pickup_stop}
+          </span>{" "}
+          → To:{" "}
+          <span className="font-semibold text-red-600">
+            {booking?.dropoff_stop}
+          </span>
+        </p>
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-sm text-gray-600">Current Location</p>
+          <p className="text-lg font-semibold text-gray-900">
+            {currentLocation || "Starting..."}
+          </p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-sm text-gray-600">ETA</p>
+          <p className="text-lg font-semibold text-blue-600">
+            {eta || "Calculating..."}
+          </p>
+        </div>
+        <div className="bg-white p-4 rounded-lg shadow">
+          <p className="text-sm text-gray-600">Distance Remaining</p>
+          <p className="text-lg font-semibold text-gray-900">{distance} km</p>
+        </div>
+      </div>
+
+      {/* Progress Bar */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <div className="flex justify-between mb-2">
+          <span className="text-sm font-medium text-gray-700">
+            Journey Progress
+          </span>
+          <span className="text-sm font-medium text-blue-600">{progress}%</span>
+        </div>
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div
+            className="bg-blue-600 h-2.5 rounded-full transition-all duration-300"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      </div>
+
+      {/* Map */}
+      <div
+        ref={mapRef}
+        className="w-full h-96 rounded-lg shadow-lg border-2 border-gray-200"
+        style={{ minHeight: "500px" }}
+      />
+
+      {/* Stop List */}
+      <div className="bg-white p-4 rounded-lg shadow">
+        <h4 className="font-semibold mb-3">
+          Route Stops ({routeStops.length})
+        </h4>
+        <div className="space-y-2">
+          {routeStops.map((stop, index) => (
+            <div
+              key={stop.id}
+              className="flex items-center justify-between py-2 border-b last:border-b-0"
+            >
+              <div className="flex items-center">
+                <span
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold mr-3 ${
+                    index === 0
+                      ? "bg-green-500"
+                      : index === routeStops.length - 1
+                      ? "bg-red-500"
+                      : "bg-gray-400"
+                  }`}
+                >
+                  {index + 1}
+                </span>
+                <div>
+                  <p className="font-medium">{stop.stop_name || stop.name}</p>
+                  <p className="text-xs text-gray-500">
+                    {stop.distance_from_start || 0} km from start
+                  </p>
+                </div>
+              </div>
+              <p className="text-sm font-semibold text-green-600">
+                UGX {Number(stop.fare || 0).toLocaleString()}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
     </div>
@@ -401,6 +995,16 @@ export const PassengerDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [selectedSeats, setSelectedSeats] = useState({});
   const [activeTab, setActiveTab] = useState("book");
+  const [trackingBooking, setTrackingBooking] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingBooking, setRatingBooking] = useState(null);
+  const handleShowRatingModal = () => setShowRatingModal(true);
+  const handleCloseRatingModal = () => setShowRatingModal(false);
+
+  const handleRateBooking = (booking) => {
+    setRatingBooking(booking);
+    setShowRatingModal(true);
+  };
 
   // Fetch wallet and bookings on load
   useEffect(() => {
@@ -706,7 +1310,13 @@ export const PassengerDashboard = () => {
   };
 
   // Example React onClick
-  const handleTapOut = async (journeyId) => {
+  // Update the function signature to accept booking
+  const handleTapOut = async (journeyId, e, booking) => {
+    e?.stopPropagation();
+
+    console.log("🔍 Tap Out - Journey ID:", journeyId);
+    console.log("🔍 Tap Out - Booking:", booking);
+
     try {
       const res = await fetch(
         `http://127.0.0.1:8000/api/journeys/journeys/${journeyId}/tap_out/`,
@@ -730,6 +1340,11 @@ export const PassengerDashboard = () => {
 
         // ✅ Refresh wallet AND bookings immediately
         await fetchWalletAndBookings();
+
+        // Show rating modal after successful tap out
+        console.log("🔍 Setting rating booking:", booking);
+        setRatingBooking(booking);
+        setShowRatingModal(true);
       } else {
         // Handle specific error cases
         if (data.detail?.includes("Insufficient balance")) {
@@ -746,6 +1361,63 @@ export const PassengerDashboard = () => {
     }
   };
 
+  // Handle rating submission
+  const handleRatingSubmit = async ({
+    driver_rating,
+    bus_rating,
+    service_rating,
+    comment,
+  }) => {
+    const journeyId = ratingBooking?.journey?.id || ratingBooking?.journey;
+
+    console.log("🔍 Rating - Journey ID:", journeyId);
+    console.log("🔍 Rating - Data:", {
+      driver_rating,
+      bus_rating,
+      service_rating,
+      comment,
+    });
+
+    if (!journeyId) {
+      alert("Error: Journey ID not found");
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/ratings/ratings/submit/`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Token ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            journey_id: journeyId,
+            driver_rating: driver_rating,
+            bus_rating: bus_rating,
+            service_rating: service_rating,
+            comment: comment,
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        alert("✅ Thank you for your feedback!");
+        setShowRatingModal(false);
+        setRatingBooking(null);
+        console.log("Rating submitted:", data);
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to submit rating");
+      }
+    } catch (error) {
+      console.error("Rating submission error:", error);
+      alert(`❌ Failed to submit rating: ${error.message}`);
+    }
+  };
+
   // Update a single booking in state after tapping
   const updateBookingTappedIn = (journeyId, tappedInStatus) => {
     setBookings((prev) =>
@@ -755,6 +1427,26 @@ export const PassengerDashboard = () => {
           : b
       )
     );
+  };
+
+  const fetchJourneysForRoute = async (routeId) => {
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:8000/api/journeys/?route=${routeId}`,
+        {
+          headers: {
+            Authorization: `Token ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch journeys");
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error("Error fetching journeys for route:", error);
+      return [];
+    }
   };
 
   return (
@@ -807,6 +1499,16 @@ export const PassengerDashboard = () => {
               }`}
             >
               📋 My Bookings ({bookings.length})
+            </button>
+            <button
+              onClick={() => setActiveTab("tracking")}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "tracking"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              📍 Track Bus
             </button>
           </nav>
         </div>
@@ -1270,26 +1972,38 @@ export const PassengerDashboard = () => {
                         </span>
 
                         {booking.status === "confirmed" && (
-                          <button
-                            onClick={(e) =>
-                              booking.tapped_in
-                                ? handleTapOut(
-                                    booking.journey?.id || booking.journey_id,
-                                    e
-                                  )
-                                : handleTapIn(
-                                    booking.journey?.id || booking.journey_id,
-                                    e
-                                  )
-                            }
-                            className={`px-4 py-2 rounded text-white ${
-                              booking.tapped_in
-                                ? "bg-orange-600 hover:bg-orange-700"
-                                : "bg-blue-600 hover:bg-blue-700"
-                            }`}
-                          >
-                            {booking.tapped_in ? "Tap Out" : "Tap In"}
-                          </button>
+                          <>
+                            <button
+                              onClick={(e) =>
+                                booking.tapped_in
+                                  ? handleTapOut(
+                                      booking.journey?.id || booking.journey_id,
+                                      e,
+                                      booking // ✅ Make sure this is the full booking object
+                                    )
+                                  : handleTapIn(
+                                      booking.journey?.id || booking.journey_id,
+                                      e
+                                    )
+                              }
+                              className={`px-4 py-2 rounded text-white ${
+                                booking.tapped_in
+                                  ? "bg-orange-600 hover:bg-orange-700"
+                                  : "bg-blue-600 hover:bg-blue-700"
+                              }`}
+                            >
+                              {booking.tapped_in ? "Tap Out" : "Tap In"}
+                            </button>
+                            <button
+                              onClick={() => {
+                                setTrackingBooking(booking);
+                                setActiveTab("tracking");
+                              }}
+                              className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                            >
+                              📍 Track Bus
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -1299,7 +2013,123 @@ export const PassengerDashboard = () => {
             )}
           </div>
         )}
+
+        {/* TRACK BUS TAB */}
+        {activeTab === "tracking" && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold">Track Your Bus</h2>
+              <button
+                onClick={() => setActiveTab("mybookings")}
+                className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+              >
+                ← Back to Bookings
+              </button>
+            </div>
+
+            {!trackingBooking ? (
+              <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+                <div className="text-6xl mb-4">📍</div>
+                <h3 className="text-xl font-bold mb-2">
+                  Select a Booking to Track
+                </h3>
+                <p className="text-gray-600 mb-6">
+                  Choose a confirmed booking from "My Bookings" to see real-time
+                  bus location
+                </p>
+                {bookings.filter((b) => b.status === "confirmed").length ===
+                0 ? (
+                  <p className="text-gray-500">
+                    No confirmed bookings available to track
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                    {bookings
+                      .filter((b) => b.status === "confirmed")
+                      .map((booking) => (
+                        <button
+                          key={booking.id}
+                          onClick={() => setTrackingBooking(booking)}
+                          className="border-2 border-gray-200 hover:border-blue-500 rounded-lg p-4 text-left transition"
+                        >
+                          <h4 className="font-bold">
+                            Bus {booking.journey?.bus_number}
+                          </h4>
+                          <p className="text-sm text-gray-600">
+                            {booking.journey?.route_name}
+                          </p>
+                          <p className="text-sm text-gray-500 mt-2">
+                            {booking.pickup_stop} → {booking.dropoff_stop}
+                          </p>
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <BusTrackingMap booking={trackingBooking} />
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="font-bold text-lg mb-4">Booking Details</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <p className="text-gray-600">Booking Reference</p>
+                      <p className="font-semibold">
+                        {trackingBooking.booking_reference}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Seats Booked</p>
+                      <p className="font-semibold">
+                        {trackingBooking.seats_booked}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Scheduled Departure</p>
+                      <p className="font-semibold">
+                        {trackingBooking.journey?.scheduled_departure
+                          ? new Date(
+                              trackingBooking.journey.scheduled_departure
+                            ).toLocaleString()
+                          : "N/A"}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-gray-600">Scheduled Arrival</p>
+                      <p className="font-semibold">
+                        {trackingBooking.journey?.scheduled_arrival
+                          ? new Date(
+                              trackingBooking.journey.scheduled_arrival
+                            ).toLocaleString()
+                          : "N/A"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => setTrackingBooking(null)}
+                    className="mt-4 w-full bg-gray-200 text-gray-700 py-2 px-4 rounded-md hover:bg-gray-300"
+                  >
+                    Track Different Bus
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
+      {/* Add the Rating Modal at the very end, just before the closing div */}
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => {
+          console.log("🔍 Closing rating modal");
+          setShowRatingModal(false);
+          setRatingBooking(null);
+        }}
+        onSubmit={handleRatingSubmit}
+        booking={ratingBooking}
+      />
     </div>
   );
 };
@@ -1307,6 +2137,303 @@ export const PassengerDashboard = () => {
 // ================= DRIVER DASHBOARD =================
 
 // ================= DRIVER DASHBOARD =================
+
+const DriverEarningsSection = () => {
+  // Sample data - replace with your actual data from API
+  const [earnings] = useState({
+    today: 125000,
+    week: 850000,
+    month: 3200000,
+    total: 12500000
+  });
+
+  const [journeyStats] = useState({
+    today: 8,
+    week: 45,
+    month: 180,
+    avgPerJourney: 17777
+  });
+
+  const [performance] = useState({
+    completionRate: 98.5,
+    rating: 4.8,
+    onTimeRate: 95.2,
+    trend: '+12.5'
+  });
+
+  const [weeklyData] = useState([
+    { day: 'Mon', amount: 120000, journeys: 6 },
+    { day: 'Tue', amount: 145000, journeys: 8 },
+    { day: 'Wed', amount: 98000, journeys: 5 },
+    { day: 'Thu', amount: 165000, journeys: 9 },
+    { day: 'Fri', amount: 178000, journeys: 10 },
+    { day: 'Sat', amount: 95000, journeys: 5 },
+    { day: 'Sun', amount: 49000, journeys: 2 }
+  ]);
+
+  const maxAmount = Math.max(...weeklyData.map(d => d.amount));
+
+  return (
+    <div className="space-y-6">
+      {/* Top Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {/* Today's Earnings */}
+        <div className="bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <DollarSign className="w-6 h-6" />
+            </div>
+            <div className="flex items-center text-sm bg-white bg-opacity-20 px-2 py-1 rounded-full">
+              <ArrowUp className="w-4 h-4 mr-1" />
+              <span>{performance.trend}%</span>
+            </div>
+          </div>
+          <h3 className="text-sm font-medium opacity-90">Today</h3>
+          <p className="text-3xl font-bold mt-1">
+            UGX {earnings.today.toLocaleString()}
+          </p>
+          <p className="text-sm opacity-80 mt-2">{journeyStats.today} journeys completed</p>
+        </div>
+
+        {/* Week's Earnings */}
+        <div className="bg-gradient-to-br from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div className="flex items-center text-sm bg-white bg-opacity-20 px-2 py-1 rounded-full">
+              <TrendingUp className="w-4 h-4 mr-1" />
+              <span>Active</span>
+            </div>
+          </div>
+          <h3 className="text-sm font-medium opacity-90">This Week</h3>
+          <p className="text-3xl font-bold mt-1">
+            UGX {earnings.week.toLocaleString()}
+          </p>
+          <p className="text-sm opacity-80 mt-2">{journeyStats.week} journeys completed</p>
+        </div>
+
+        {/* Month's Earnings */}
+        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <Clock className="w-6 h-6" />
+            </div>
+            <div className="text-sm bg-white bg-opacity-20 px-2 py-1 rounded-full">
+              30 days
+            </div>
+          </div>
+          <h3 className="text-sm font-medium opacity-90">This Month</h3>
+          <p className="text-3xl font-bold mt-1">
+            UGX {earnings.month.toLocaleString()}
+          </p>
+          <p className="text-sm opacity-80 mt-2">{journeyStats.month} journeys completed</p>
+        </div>
+
+        {/* Average Per Journey */}
+        <div className="bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-transform duration-200">
+          <div className="flex items-center justify-between mb-4">
+            <div className="bg-white bg-opacity-20 rounded-lg p-3">
+              <Award className="w-6 h-6" />
+            </div>
+            <div className="flex items-center text-sm bg-white bg-opacity-20 px-2 py-1 rounded-full">
+              ⭐ {performance.rating}
+            </div>
+          </div>
+          <h3 className="text-sm font-medium opacity-90">Avg Per Journey</h3>
+          <p className="text-3xl font-bold mt-1">
+            UGX {journeyStats.avgPerJourney.toLocaleString()}
+          </p>
+          <p className="text-sm opacity-80 mt-2">Based on completed trips</p>
+        </div>
+      </div>
+
+      {/* Weekly Performance Chart & Stats */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Weekly Earnings Chart */}
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-800">Weekly Performance</h3>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-500">Peak:</span>
+              <span className="font-semibold text-green-600">
+                UGX {maxAmount.toLocaleString()}
+              </span>
+            </div>
+          </div>
+
+          {/* Bar Chart */}
+          <div className="space-y-4">
+            {weeklyData.map((data, idx) => {
+              const percentage = (data.amount / maxAmount) * 100;
+              const isToday = idx === new Date().getDay() - 1;
+
+              return (
+                <div key={data.day} className="space-y-1">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className={`font-medium ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                      {data.day}
+                    </span>
+                    <span className="text-gray-600">{data.journeys} trips</span>
+                  </div>
+                  <div className="relative">
+                    <div className="w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div
+                        className={`h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3 ${
+                          isToday
+                            ? 'bg-gradient-to-r from-blue-400 to-blue-600'
+                            : 'bg-gradient-to-r from-green-400 to-green-600'
+                        }`}
+                        style={{ width: `${percentage}%` }}
+                      >
+                        <span className="text-white text-xs font-semibold">
+                          {percentage > 20 && `UGX ${data.amount.toLocaleString()}`}
+                        </span>
+                      </div>
+                    </div>
+                    {percentage <= 20 && (
+                      <span className="absolute right-2 top-1 text-xs font-semibold text-gray-700">
+                        UGX {data.amount.toLocaleString()}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Performance Metrics */}
+        <div className="space-y-6">
+          {/* Completion Rate */}
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <h3 className="text-lg font-bold text-gray-800 mb-4">Performance Metrics</h3>
+            
+            <div className="space-y-4">
+              {/* Completion Rate Circle */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Completion Rate</p>
+                  <p className="text-2xl font-bold text-gray-800">{performance.completionRate}%</p>
+                </div>
+                <div className="relative w-20 h-20">
+                  <svg className="transform -rotate-90 w-20 h-20">
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="32"
+                      stroke="#e5e7eb"
+                      strokeWidth="8"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="40"
+                      cy="40"
+                      r="32"
+                      stroke="#10b981"
+                      strokeWidth="8"
+                      fill="transparent"
+                      strokeDasharray={`${2 * Math.PI * 32}`}
+                      strokeDashoffset={`${2 * Math.PI * 32 * (1 - performance.completionRate / 100)}`}
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-xs font-bold text-gray-700">
+                      {performance.completionRate}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* On-Time Rate */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm text-gray-600">On-Time Rate</p>
+                  <p className="text-lg font-bold text-blue-600">{performance.onTimeRate}%</p>
+                </div>
+                <div className="w-full bg-gray-100 rounded-full h-2">
+                  <div
+                    className="bg-gradient-to-r from-blue-400 to-blue-600 h-2 rounded-full transition-all duration-700"
+                    style={{ width: `${performance.onTimeRate}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Rating */}
+              <div className="pt-4 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm text-gray-600">Average Rating</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <span
+                          key={star}
+                          className={`text-lg ${
+                            star <= Math.floor(performance.rating)
+                              ? 'text-yellow-400'
+                              : 'text-gray-300'
+                          }`}
+                        >
+                          ★
+                        </span>
+                      ))}
+                    </div>
+                    <span className="text-lg font-bold text-gray-800">
+                      {performance.rating}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats */}
+          <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg p-6 text-white">
+            <h3 className="text-lg font-bold mb-4">Lifetime Earnings</h3>
+            <p className="text-4xl font-bold mb-2">
+              UGX {earnings.total.toLocaleString()}
+            </p>
+            <p className="text-sm opacity-90">
+              Keep up the great work! 🎉
+            </p>
+            <div className="mt-4 pt-4 border-t border-white border-opacity-20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="opacity-90">Growth this month</span>
+                <span className="font-bold">{performance.trend}% ↑</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Earnings Breakdown */}
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <h3 className="text-xl font-bold text-gray-800 mb-6">Earnings Breakdown</h3>
+        
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="border-l-4 border-blue-500 pl-4">
+            <p className="text-sm text-gray-600 mb-1">Base Fare</p>
+            <p className="text-2xl font-bold text-gray-800">UGX 2,850,000</p>
+            <p className="text-xs text-gray-500 mt-1">89% of total earnings</p>
+          </div>
+          
+          <div className="border-l-4 border-green-500 pl-4">
+            <p className="text-sm text-gray-600 mb-1">Bonuses</p>
+            <p className="text-2xl font-bold text-gray-800">UGX 250,000</p>
+            <p className="text-xs text-gray-500 mt-1">8% of total earnings</p>
+          </div>
+          
+          <div className="border-l-4 border-orange-500 pl-4">
+            <p className="text-sm text-gray-600 mb-1">Tips</p>
+            <p className="text-2xl font-bold text-gray-800">UGX 100,000</p>
+            <p className="text-xs text-gray-500 mt-1">3% of total earnings</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const DriverDashboard = () => {
   const { user, logout } = useAuth();
@@ -1318,6 +2445,9 @@ export const DriverDashboard = () => {
   const [busSummary, setBusSummary] = useState([]);
   const token = localStorage.getItem("token");
   const [walletBalance, setWalletBalance] = useState(0);
+  const [journeyRatings, setJourneyRatings] = useState({});
+  const [trackingBooking, setTrackingBooking] = useState(null);
+  const [completedJourneys, setCompletedJourneys] = useState([]);
   // Fetch wallet and bookings on load
   useEffect(() => {
     fetchWalletAndBookings();
@@ -1512,6 +2642,153 @@ export const DriverDashboard = () => {
     return () => clearInterval(interval);
   }, [journeys]);
 
+  // Add this function to fetch ratings for journeys
+  const fetchJourneyRatings = async () => {
+    try {
+      const token = localStorage.getItem("token");
+
+      console.log("🔍 Fetching ratings for journeys:", journeys.length);
+
+      // Fetch ratings for all journeys
+      const ratingsPromises = journeys.map(async (journey) => {
+        try {
+          console.log(`📡 Fetching ratings for journey ${journey.id}`);
+          const response = await fetch(
+            `http://127.0.0.1:8000/api/journeys/journeys/${journey.id}/ratings/`,
+            {
+              headers: {
+                Authorization: `Token ${token}`,
+              },
+            }
+          );
+
+          console.log(`📡 Response status for journey ${journey.id}:`, response.status);
+
+          if (response.ok) {
+            const data = await response.json();
+            console.log(`✅ Ratings for journey ${journey.id}:`, data);
+            return { journeyId: journey.id, ratings: data };
+          }
+          return { journeyId: journey.id, ratings: [] };
+        } catch (err) {
+          console.error(
+            `Error fetching ratings for journey ${journey.id}:`,
+            err
+          );
+          return { journeyId: journey.id, ratings: [] };
+        }
+      });
+
+      const ratingsResults = await Promise.all(ratingsPromises);
+
+      // Convert to object for easy lookup
+      const ratingsMap = {};
+      ratingsResults.forEach(({ journeyId, ratings }) => {
+        ratingsMap[journeyId] = ratings;
+      });
+
+      console.log("✅ All ratings fetched:", ratingsMap);
+      setJourneyRatings(ratingsMap);
+    } catch (err) {
+      console.error("Error fetching journey ratings:", err);
+    }
+  };
+
+  // Update your useEffect to fetch ratings when journeys are loaded
+  useEffect(() => {
+    if (journeys.length > 0) {
+      fetchJourneyRatings();
+    }
+  }, [journeys]);
+
+  // Calculate average rating for each category
+  const calculateAverageRating = (ratings) => {
+    if (!ratings || ratings.length === 0)
+      return {
+        driver: 0,
+        bus: 0,
+        service: 0,
+        overall: 0,
+      };
+
+    const sum = ratings.reduce(
+      (acc, r) => ({
+        driver: acc.driver + r.driver_rating,
+        bus: acc.bus + r.bus_rating,
+        service: acc.service + r.service_rating,
+        overall: acc.overall + parseFloat(r.overall_rating),
+      }),
+      { driver: 0, bus: 0, service: 0, overall: 0 }
+    );
+
+    return {
+      driver: (sum.driver / ratings.length).toFixed(1),
+      bus: (sum.bus / ratings.length).toFixed(1),
+      service: (sum.service / ratings.length).toFixed(1),
+      overall: (sum.overall / ratings.length).toFixed(1),
+    };
+  };
+
+  // Keep your existing StarRating component as is
+  const StarRating = ({ rating, size = "small" }) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+
+    const starSize =
+      size === "small" ? "w-4 h-4" : size === "medium" ? "w-5 h-5" : "w-6 h-6";
+
+    for (let i = 1; i <= 5; i++) {
+      if (i <= fullStars) {
+        stars.push(
+          <svg
+            key={i}
+            className={`${starSize} text-yellow-400 fill-current`}
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+          >
+            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+          </svg>
+        );
+      } else if (i === fullStars + 1 && hasHalfStar) {
+        stars.push(
+          <div key={i} className="relative">
+            <svg
+              className={`${starSize} text-gray-300`}
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="currentColor"
+            >
+              <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+            <svg
+              className={`${starSize} text-yellow-400 fill-current absolute top-0 left-0`}
+              style={{ clipPath: "inset(0 50% 0 0)" }}
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+            >
+              <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+            </svg>
+          </div>
+        );
+      } else {
+        stars.push(
+          <svg
+            key={i}
+            className={`${starSize} text-gray-300`}
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="currentColor"
+          >
+            <path d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+          </svg>
+        );
+      }
+    }
+
+    return <div className="flex items-center gap-1">{stars}</div>;
+  };
+
   // ================== Render ==================
   return (
     <div className="min-h-screen bg-gray-50">
@@ -1583,6 +2860,10 @@ export const DriverDashboard = () => {
                 const seatInfo = busSummary.find(
                   (b) => b.journey_id === journey.id
                 );
+                // Get ratings for this journey
+                const ratings = journeyRatings[journey.id] || [];
+                const averageRating = calculateAverageRating(ratings);
+                const hasRatings = ratings.length > 0;
 
                 return (
                   <div
@@ -1669,6 +2950,184 @@ export const DriverDashboard = () => {
                           </p>
                         </div>
                       )}
+                      {/* ================= Ratings Section ================= */}
+                      {ratings && ratings.length > 0 ? (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          {/* Overall Rating Summary */}
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-3xl font-bold text-gray-800">
+                                  {calculateAverageRating(ratings).overall}
+                                </span>
+                                <StarRating
+                                  rating={parseFloat(
+                                    calculateAverageRating(ratings).overall
+                                  )}
+                                  size="medium"
+                                />
+                              </div>
+                              <p className="text-sm text-gray-600 mt-1">
+                                Based on {ratings.length} rating
+                                {ratings.length !== 1 ? "s" : ""}
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Category Ratings */}
+                          <div className="grid grid-cols-3 gap-3 mb-4">
+                            <div className="bg-blue-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-gray-600 mb-1">
+                                Driver
+                              </p>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-lg font-bold text-blue-700">
+                                  {calculateAverageRating(ratings).driver}
+                                </span>
+                                <span className="text-yellow-400">⭐</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-green-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-gray-600 mb-1">Bus</p>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-lg font-bold text-green-700">
+                                  {calculateAverageRating(ratings).bus}
+                                </span>
+                                <span className="text-yellow-400">⭐</span>
+                              </div>
+                            </div>
+
+                            <div className="bg-purple-50 p-3 rounded-lg text-center">
+                              <p className="text-xs text-gray-600 mb-1">
+                                Service
+                              </p>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="text-lg font-bold text-purple-700">
+                                  {calculateAverageRating(ratings).service}
+                                </span>
+                                <span className="text-yellow-400">⭐</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Rating Distribution by Overall Rating */}
+                          <div className="space-y-1 mb-4">
+                            <p className="text-xs font-semibold text-gray-700 mb-2">
+                              Rating Distribution:
+                            </p>
+                            {[5, 4, 3, 2, 1].map((star) => {
+                              // Count ratings where overall is in the range
+                              const count = ratings.filter(
+                                (r) =>
+                                  Math.round(parseFloat(r.overall_rating)) ===
+                                  star
+                              ).length;
+                              const percentage =
+                                ratings.length > 0
+                                  ? ((count / ratings.length) * 100).toFixed(0)
+                                  : 0;
+
+                              return (
+                                <div
+                                  key={star}
+                                  className="flex items-center gap-2 text-xs"
+                                >
+                                  <span className="w-12 text-gray-600">
+                                    {star} ⭐
+                                  </span>
+                                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                    <div
+                                      className="bg-yellow-400 h-2 rounded-full transition-all"
+                                      style={{ width: `${percentage}%` }}
+                                    ></div>
+                                  </div>
+                                  <span className="w-12 text-right text-gray-600">
+                                    {count}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Recent Comments */}
+                          {ratings.some((r) => r.comment) && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">
+                                Recent Comments:
+                              </p>
+                              <div className="space-y-2 max-h-40 overflow-y-auto">
+                                {ratings
+                                  .filter((r) => r.comment)
+                                  .slice(0, 5)
+                                  .map((rating, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="bg-gray-50 p-3 rounded text-xs border border-gray-200"
+                                    >
+                                      <div className="flex items-start justify-between mb-2">
+                                        <span className="font-medium text-gray-700">
+                                          {rating.user_name || "Anonymous"}
+                                        </span>
+                                        <span className="text-gray-500 text-xs">
+                                          {new Date(
+                                            rating.created_at
+                                          ).toLocaleDateString()}
+                                        </span>
+                                      </div>
+
+                                      <div className="grid grid-cols-3 gap-2 mb-2">
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-600">
+                                            Driver:
+                                          </span>
+                                          <StarRating
+                                            rating={rating.driver_rating}
+                                            size="small"
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-600">
+                                            Bus:
+                                          </span>
+                                          <StarRating
+                                            rating={rating.bus_rating}
+                                            size="small"
+                                          />
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                          <span className="text-xs text-gray-600">
+                                            Service:
+                                          </span>
+                                          <StarRating
+                                            rating={rating.service_rating}
+                                            size="small"
+                                          />
+                                        </div>
+                                      </div>
+
+                                      <p className="text-gray-700 italic">
+                                        "{rating.comment}"
+                                      </p>
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="text-center py-3 bg-gray-50 rounded-lg">
+                            <p className="text-sm text-gray-500">
+                              ⭐ No ratings yet
+                            </p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              Ratings will appear after passengers complete
+                              their journey
+                            </p>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ================================================= */}
                     </div>
@@ -1723,33 +3182,14 @@ export const DriverDashboard = () => {
         )}
 
         {/* === Earnings Tab === */}
-        {activeTab === "earnings" && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {["today", "week", "month"].map((period) => (
-              <div
-                key={period}
-                className="bg-white shadow-lg rounded-lg p-6 text-center"
-              >
-                <h3 className="text-sm font-medium text-gray-500 capitalize">
-                  {period === "today"
-                    ? "Today"
-                    : period === "week"
-                    ? "This Week"
-                    : "This Month"}
-                </h3>
-                <p className="mt-2 text-2xl font-semibold text-green-600">
-                  UGX {Number(earnings[period]).toLocaleString()}
-                </p>
-              </div>
-            ))}
-          </div>
-        )}
+        {activeTab === "earnings" && <DriverEarningsSection />}
       </div>
     </div>
   );
 };
 
 // ================= ADMIN DASHBOARD =================
+
 export const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
