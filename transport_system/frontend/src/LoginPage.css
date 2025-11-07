@@ -1,0 +1,330 @@
+/* Background */
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: linear-gradient(135deg, #ece0e0, #050221);
+  color: #eaeaea;
+}
+
+/* Full-screen wrapper */
+.login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+}
+
+/* Card */
+.login-card {
+  background: #0f0332;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  padding: 2rem 2.5rem;
+  width: 100%;
+  max-width: 400px;
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.login-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+  transform: translateY(-2px);
+}
+
+/* Title */
+.login-title {
+  text-align: center;
+  font-size: 1.6rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #f3f3f3;
+}
+
+/* Error message */
+.login-error {
+  color: #f28b82;
+  background: #3c2a2a;
+  border: 1px solid #5b3838;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+/* Form styling */
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-form input {
+  width: 100%;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid #444;
+  border-radius: 6px;
+  background-color: #1e1e1e;
+  color: #f0f0f0;
+  font-size: 0.95rem;
+  transition: border 0.2s ease, background 0.2s ease;
+}
+
+.login-form input::placeholder {
+  color: #888;
+}
+
+.login-form input:focus {
+  border-color: #888;
+  background-color: #262626;
+  outline: none;
+}
+
+/* Button */
+.login-form button {
+  width: 100%;
+  background-color: #170770;
+  color: #f5f5f5;
+  border: none;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease, transform 0.1s ease, box-shadow 0.2s ease;
+}
+
+.login-form button:hover {
+  background-color: #8686d8;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.login-form button:active {
+  transform: scale(0.98);
+}
+
+.login-form button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Footer */
+.login-footer {
+  text-align: center;
+  margin-top: 1.5rem;
+}
+
+.login-footer button {
+  background: none;
+  border: none;
+  color: #b0b0b0;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.login-footer button span {
+  color: #f0f0f0;
+  text-decoration: underline;
+  font-weight: 500;
+}
+
+.login-footer button:hover span {
+  color: #fff;
+}
+
+/* === DASHBOARD GLOBALS === */
+body {
+  margin: 0;
+  font-family: "Inter", system-ui, sans-serif;
+  background: linear-gradient(135deg, #ece0e0, #050221);
+  color: #3f3939;
+}
+
+/* --- Layout --- */
+.dashboard {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Header --- */
+.dashboard-header {
+  background: #0f0332;
+  border-bottom: 1px solid #3a3a3a;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dashboard-header h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #f3f3f3;
+}
+
+.dashboard-header .user-info {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  font-size: 0.95rem;
+  color: #d8d8d8;
+}
+
+.dashboard-header button {
+  background-color: #701c1c;
+  color: #f5f5f5;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.dashboard-header button:hover {
+  background-color: #a82929;
+}
+
+/* --- Tabs Navigation --- */
+.dashboard-tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #3a3a3a;
+  padding: 0.75rem 2rem;
+  background-color: #0f0332;
+}
+
+.dashboard-tabs button {
+  background: none;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 0.95rem;
+  color: #b0b0b0;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dashboard-tabs button:hover {
+  color: #ffffff;
+}
+
+.dashboard-tabs button.active {
+  color: #8686d8;
+  border-color: #8686d8;
+}
+
+/* --- Section Wrapper --- */
+.dashboard-content {
+  flex: 1;
+  padding: 2rem;
+}
+
+/* --- Cards --- */
+.card {
+  background: #0f0332;
+  border: 1px solid #3a3a3a;
+  border-radius: 10px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  transition: transform 0.2s ease, box-shadow 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+
+.card h3 {
+  color: #b0b0b0;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+}
+
+.card p {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #f0f0f0;
+}
+
+/* --- Forms --- */
+select,
+input {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background-color: #1e1e1e;
+  color: #eaeaea;
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+select:focus,
+input:focus {
+  border-color: #8686d8;
+  outline: none;
+  background-color: #2a2a2a;
+}
+
+/* --- Primary Button --- */
+.btn-primary {
+  background-color: #170770;
+  color: #f5f5f5;
+  border: none;
+  border-radius: 6px;
+  padding: 0.6rem 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.3s ease;
+}
+
+.btn-primary:hover {
+  background-color: #8686d8;
+}
+
+/* --- Danger Button --- */
+.btn-danger {
+  background-color: #701c1c;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.btn-danger:hover {
+  background-color: #a82929;
+}
+
+/* --- Tables --- */
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #eaeaea;
+  font-size: 0.9rem;
+}
+
+.table th,
+.table td {
+  border: 1px solid #3a3a3a;
+  padding: 0.6rem;
+}
+
+.table th {
+  background-color: #1e1e1e;
+  text-align: left;
+  color: #c7c7c7;
+}
+
+.table tr:nth-child(even) {
+  background-color: #14123b;
+}
+
+.table tr:hover {
+  background-color: #1d1a48;
+}

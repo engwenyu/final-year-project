@@ -11,7 +11,24 @@ import React, {
 } from "react";
 import { FaTrash, FaEdit } from "react-icons/fa";
 import EnhancedPassengersSection from "./EnhancedPassengersSection"; // adjust path
-import { TrendingUp, DollarSign, Calendar, Clock, Award, ArrowUp, ArrowDown } from 'lucide-react';
+import {
+  TrendingUp,
+  DollarSign,
+  Calendar,
+  Clock,
+  Award,
+  ArrowUp,
+  ArrowDown,
+  TrendingDown,
+  Users,
+  Bus,
+  MapPin,
+  Activity,
+  AlertCircle,
+  CheckCircle,
+} from "lucide-react";
+import "./LoginPage.css";
+
 // ✅ API helper
 const API_BASE = process.env.REACT_APP_API_BASE || "http://127.0.0.1:8000/api";
 const API_BASE_URL = "http://localhost:8000/api";
@@ -144,18 +161,18 @@ const LoginPage = ({ onSwitch }) => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-600 to-purple-700 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
-        <h1 className="text-2xl font-bold text-center mb-4">Sign In</h1>
-        {error && <p className="text-red-500 mb-4">{error}</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="login-wrapper">
+      <div className="login-card">
+        <h1 className="login-title">Sign In</h1>
+        {error && <p className="login-error">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="login-form">
           <input
             name="username"
             placeholder="Username"
             value={form.username}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border rounded"
           />
           <input
             type="password"
@@ -164,22 +181,15 @@ const LoginPage = ({ onSwitch }) => {
             value={form.password}
             onChange={handleChange}
             required
-            className="w-full px-3 py-2 border rounded"
           />
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 disabled:opacity-50"
-          >
+          <button type="submit" disabled={loading}>
             {loading ? "Signing In..." : "Sign In"}
           </button>
         </form>
-        <div className="mt-6 text-center">
-          <button
-            onClick={onSwitch}
-            className="text-blue-600 hover:text-blue-800 text-sm"
-          >
-            Don&apos;t have an account? Sign up
+
+        <div className="login-footer">
+          <button onClick={onSwitch}>
+            Don’t have an account? <span>Sign up</span>
           </button>
         </div>
       </div>
@@ -1450,28 +1460,29 @@ export const PassengerDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-[#050221] to-[#0f0332] text-[#eaeaea]">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold text-gray-900">
-              🚌 Passenger Dashboard
-            </h1>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                Welcome, {user?.first_name}
+      <header className="bg-[#0f0332]/90 border-b border-[#3a3a3a] shadow-md">
+        <div className="max-w-7xl mx-auto flex justify-between items-center p-4">
+          <h1 className="text-2xl font-semibold text-[#f3f3f3]">
+            🚌 Passenger Dashboard
+          </h1>
+          <div className="flex items-center space-x-4">
+            <span className="text-[#b0b0b0]">
+              Welcome,{" "}
+              <span className="text-[#f0f0f0]">
+                {user?.first_name || "Passenger"}
               </span>
-              <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                💰 UGX {walletBalance.toLocaleString()}
-              </span>
-              <button
-                onClick={logout}
-                className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </div>
+            </span>
+            <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
+              💰 UGX {walletBalance.toLocaleString()}
+            </span>
+            <button
+              onClick={logout}
+              className="bg-[#5b3838] hover:bg-[#f28b82] text-white px-4 py-2 rounded-md transition"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
@@ -1521,29 +1532,29 @@ export const PassengerDashboard = () => {
           <div className="space-y-6">
             {/* Step 1: Select Route Type */}
             {!routeType && (
-              <div className="bg-white rounded-lg shadow-lg p-8">
-                <h2 className="text-2xl font-bold mb-6 text-center">
+              <div className="bg-[#0f0332]/80 rounded-2xl shadow-xl p-8 backdrop-blur-md border border-[#3a3a3a]">
+                <h2 className="text-2xl font-bold mb-6 text-center text-[#f3f3f3]">
                   Where would you like to go?
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <button
                     onClick={() => fetchRoutes("intercity")}
-                    className="bg-blue-600 hover:bg-blue-700 text-white p-8 rounded-xl shadow-lg transition transform hover:scale-105"
+                    className="bg-gradient-to-br from-blue-500 to-blue-700 text-white p-8 rounded-2xl shadow-lg transition transform hover:scale-105 hover:shadow-blue-500/40 flex flex-col items-center justify-center"
                   >
-                    <div className="text-4xl mb-3">🏙️</div>
+                    <div className="text-5xl mb-3 animate-bounce-slow">🏙️</div>
                     <h3 className="text-xl font-bold">Intercity Routes</h3>
-                    <p className="text-sm mt-2 opacity-90">
+                    <p className="text-sm mt-2 opacity-90 text-gray-100 text-center">
                       Short distance within city areas
                     </p>
                   </button>
 
                   <button
                     onClick={() => fetchRoutes("outercity")}
-                    className="bg-purple-600 hover:bg-green-700 text-white p-8 rounded-xl shadow-lg transition transform hover:scale-105"
+                    className="bg-gradient-to-br from-purple-500 to-pink-600 text-white p-8 rounded-2xl shadow-lg transition transform hover:scale-105 hover:shadow-pink-500/40 flex flex-col items-center justify-center"
                   >
-                    <div className="text-4xl mb-3">🌍</div>
+                    <div className="text-5xl mb-3 animate-bounce-slow">🌍</div>
                     <h3 className="text-xl font-bold">Outercity Routes</h3>
-                    <p className="text-sm mt-2 opacity-90">
+                    <p className="text-sm mt-2 opacity-90 text-gray-100 text-center">
                       Long distance to other cities
                     </p>
                   </button>
@@ -1553,71 +1564,61 @@ export const PassengerDashboard = () => {
 
             {/* Step 2: Select Route (as buttons) */}
             {routeType && !selectedRoute && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-[#0f0332]/70 rounded-2xl shadow-xl p-6 backdrop-blur-md border border-[#3a3a3a]">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold">
+                  <h2 className="text-xl font-bold text-[#f3f3f3]">
                     Select{" "}
                     {routeType === "intercity" ? "Intercity" : "Outercity"}{" "}
                     Route
                   </h2>
                   <button
                     onClick={resetSearch}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    className="text-blue-400 hover:text-blue-500 text-sm font-medium transition"
                   >
                     ← Change Route Type
                   </button>
                 </div>
 
                 {routes.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">
+                  <p className="text-center text-gray-400 py-8">
                     No routes available for this type
                   </p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {routes.map((route) => {
-                      console.log("Route object:", route);
-                      console.log(
-                        "Base fare:",
-                        route.base_fare,
-                        "Type:",
-                        typeof route.base_fare
-                      );
-                      return (
-                        <button
-                          key={route.id}
-                          onClick={() => handleRouteSelect(route)}
-                          className="border-2 border-gray-200 hover:border-blue-500 hover:shadow-lg rounded-lg p-5 text-left transition transform hover:scale-102"
-                        >
-                          <h3 className="font-bold text-lg mb-2">
-                            {route.name}
-                          </h3>
-                          <p className="text-gray-600 text-sm mb-3">
-                            📍 {route.start_location} → {route.end_location}
-                          </p>
-                          <div className="flex justify-between items-center mt-3 pt-3 border-t">
-                            <div className="text-xs text-gray-500">
-                              <span className="block">
-                                📏 {route.distance_km || "N/A"} km
-                              </span>
-                              <span className="block">
-                                ⏱️ {route.estimated_duration_minutes || "N/A"}{" "}
-                                min
-                              </span>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-500">Base Fare</p>
-                              <p className="font-bold text-green-600 text-lg">
-                                UGX{" "}
-                                {route.base_fare !== undefined &&
-                                route.base_fare !== null
-                                  ? Number(route.base_fare).toLocaleString()
-                                  : "N/A"}
-                              </p>
-                            </div>
+                    {routes.map((route) => (
+                      <button
+                        key={route.id}
+                        onClick={() => handleRouteSelect(route)}
+                        className="bg-[#1a1442]/70 border border-[#3a3a3a] hover:border-blue-500 hover:shadow-lg rounded-xl p-5 text-left transition transform hover:scale-[1.02]"
+                      >
+                        <h3 className="font-bold text-lg mb-2 text-[#f0f0f0]">
+                          {route.name}
+                        </h3>
+                        <p className="text-gray-400 text-sm mb-3">
+                          📍 {route.start_location} → {route.end_location}
+                        </p>
+                        <div className="flex justify-between items-center mt-3 pt-3 border-t border-[#3a3a3a]">
+                          <div className="text-xs text-gray-500">
+                            <span className="block">
+                              📏 {route.distance_km || "N/A"} km
+                            </span>
+                            <span className="block">
+                              ⏱️ {route.estimated_duration_minutes || "N/A"} min
+                            </span>
                           </div>
-                        </button>
-                      );
-                    })}
+                          <div className="text-right">
+                            <p className="text-xs text-gray-400">Base Fare</p>
+                            <p className="font-bold text-green-400 text-lg">
+                              UGX{" "}
+                              {route.base_fare !== undefined &&
+                              route.base_fare !== null
+                                ? Number(route.base_fare).toLocaleString()
+                                : "N/A"}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -1625,35 +1626,39 @@ export const PassengerDashboard = () => {
 
             {/* Step 3: Select Stops (as buttons) */}
             {selectedRoute && journeys.length === 0 && (
-              <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="bg-[#0f0332]/70 rounded-2xl shadow-xl p-6 backdrop-blur-md border border-[#3a3a3a]">
                 <div className="flex justify-between items-center mb-6">
-                  <h2 className="text-xl font-bold">Select Your Stops</h2>
+                  <h2 className="text-xl font-bold text-[#f3f3f3]">
+                    Select Your Stops
+                  </h2>
                   <button
                     onClick={() => {
                       setSelectedRoute(null);
                       setStops([]);
                     }}
-                    className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                    className="text-blue-400 hover:text-blue-500 text-sm font-medium transition"
                   >
                     ← Change Route
                   </button>
                 </div>
 
-                <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-bold text-lg">{selectedRoute.name}</h3>
-                  <p className="text-sm text-gray-600">
+                <div className="mb-6 p-4 bg-[#1a1442]/60 rounded-xl border border-[#3a3a3a]">
+                  <h3 className="font-bold text-lg text-[#f3f3f3]">
+                    {selectedRoute.name}
+                  </h3>
+                  <p className="text-sm text-gray-400">
                     {selectedRoute.start_location} →{" "}
                     {selectedRoute.end_location}
                   </p>
-                  <p className="text-sm text-green-600 font-medium mt-1">
+                  <p className="text-sm text-green-400 font-medium mt-1">
                     Base Fare: UGX{" "}
                     {Number(selectedRoute.base_fare).toLocaleString()}
                   </p>
                 </div>
 
-                {/* Pickup Stop Selection */}
+                {/* Pickup Stop */}
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
+                  <h3 className="font-semibold text-[#f3f3f3] mb-3 flex items-center">
                     <span className="bg-green-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">
                       1
                     </span>
@@ -1668,19 +1673,19 @@ export const PassengerDashboard = () => {
                           if (selectedDropoff?.id === stop.id)
                             setSelectedDropoff(null);
                         }}
-                        className={`border-2 rounded-lg p-4 text-left transition ${
+                        className={`border-2 rounded-lg p-4 text-left transition transform hover:scale-105 ${
                           selectedPickup?.id === stop.id
-                            ? "border-green-500 bg-green-50"
-                            : "border-gray-200 hover:border-green-300"
+                            ? "border-green-500 bg-green-900/30"
+                            : "border-[#3a3a3a] hover:border-green-400"
                         }`}
                       >
-                        <h4 className="font-bold text-sm mb-1">
+                        <h4 className="font-bold text-sm mb-1 text-[#f0f0f0]">
                           {stop.stop_name || stop.name}
                         </h4>
-                        <p className="text-xs text-gray-500 mb-2">
+                        <p className="text-xs text-gray-400 mb-2">
                           📏 {stop.distance_from_start || 0} km from start
                         </p>
-                        <p className="font-semibold text-green-600 text-sm">
+                        <p className="font-semibold text-green-400 text-sm">
                           UGX {Number(stop.fare || 0).toLocaleString()}
                         </p>
                       </button>
@@ -1691,30 +1696,30 @@ export const PassengerDashboard = () => {
                 {/* Dropoff Stop Selection */}
                 {selectedPickup && (
                   <div className="mb-6">
-                    <h3 className="font-semibold text-gray-700 mb-3 flex items-center">
+                    <h3 className="font-semibold text-[#f3f3f3] mb-3 flex items-center">
                       <span className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs mr-2">
                         2
                       </span>
                       📍 Select Dropoff Stop
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {stops.map((stop) => (
                         <button
                           key={stop.id}
                           onClick={() => setSelectedDropoff(stop)}
-                          className={`border-2 rounded-lg p-4 text-left transition ${
+                          className={`border-2 rounded-lg p-4 text-left transition transform hover:scale-105 ${
                             selectedDropoff?.id === stop.id
-                              ? "border-red-500 bg-red-50"
-                              : "border-gray-200 hover:border-red-300"
+                              ? "border-red-500 bg-red-900/30"
+                              : "border-[#3a3a3a] hover:border-red-400"
                           }`}
                         >
-                          <h4 className="font-bold text-sm mb-1">
+                          <h4 className="font-bold text-sm mb-1 text-[#f0f0f0]">
                             {stop.stop_name || stop.name}
                           </h4>
-                          <p className="text-xs text-gray-500 mb-2">
+                          <p className="text-xs text-gray-400 mb-2">
                             📏 {stop.distance_from_start || 0} km from start
                           </p>
-                          <p className="font-semibold text-red-600 text-sm">
+                          <p className="font-semibold text-red-400 text-sm">
                             UGX {Number(stop.fare || 0).toLocaleString()}
                           </p>
                         </button>
@@ -2144,34 +2149,34 @@ const DriverEarningsSection = () => {
     today: 125000,
     week: 850000,
     month: 3200000,
-    total: 12500000
+    total: 12500000,
   });
 
   const [journeyStats] = useState({
     today: 8,
     week: 45,
     month: 180,
-    avgPerJourney: 17777
+    avgPerJourney: 17777,
   });
 
   const [performance] = useState({
     completionRate: 98.5,
     rating: 4.8,
     onTimeRate: 95.2,
-    trend: '+12.5'
+    trend: "+12.5",
   });
 
   const [weeklyData] = useState([
-    { day: 'Mon', amount: 120000, journeys: 6 },
-    { day: 'Tue', amount: 145000, journeys: 8 },
-    { day: 'Wed', amount: 98000, journeys: 5 },
-    { day: 'Thu', amount: 165000, journeys: 9 },
-    { day: 'Fri', amount: 178000, journeys: 10 },
-    { day: 'Sat', amount: 95000, journeys: 5 },
-    { day: 'Sun', amount: 49000, journeys: 2 }
+    { day: "Mon", amount: 120000, journeys: 6 },
+    { day: "Tue", amount: 145000, journeys: 8 },
+    { day: "Wed", amount: 98000, journeys: 5 },
+    { day: "Thu", amount: 165000, journeys: 9 },
+    { day: "Fri", amount: 178000, journeys: 10 },
+    { day: "Sat", amount: 95000, journeys: 5 },
+    { day: "Sun", amount: 49000, journeys: 2 },
   ]);
 
-  const maxAmount = Math.max(...weeklyData.map(d => d.amount));
+  const maxAmount = Math.max(...weeklyData.map((d) => d.amount));
 
   return (
     <div className="space-y-6">
@@ -2192,7 +2197,9 @@ const DriverEarningsSection = () => {
           <p className="text-3xl font-bold mt-1">
             UGX {earnings.today.toLocaleString()}
           </p>
-          <p className="text-sm opacity-80 mt-2">{journeyStats.today} journeys completed</p>
+          <p className="text-sm opacity-80 mt-2">
+            {journeyStats.today} journeys completed
+          </p>
         </div>
 
         {/* Week's Earnings */}
@@ -2210,7 +2217,9 @@ const DriverEarningsSection = () => {
           <p className="text-3xl font-bold mt-1">
             UGX {earnings.week.toLocaleString()}
           </p>
-          <p className="text-sm opacity-80 mt-2">{journeyStats.week} journeys completed</p>
+          <p className="text-sm opacity-80 mt-2">
+            {journeyStats.week} journeys completed
+          </p>
         </div>
 
         {/* Month's Earnings */}
@@ -2227,7 +2236,9 @@ const DriverEarningsSection = () => {
           <p className="text-3xl font-bold mt-1">
             UGX {earnings.month.toLocaleString()}
           </p>
-          <p className="text-sm opacity-80 mt-2">{journeyStats.month} journeys completed</p>
+          <p className="text-sm opacity-80 mt-2">
+            {journeyStats.month} journeys completed
+          </p>
         </div>
 
         {/* Average Per Journey */}
@@ -2253,7 +2264,9 @@ const DriverEarningsSection = () => {
         {/* Weekly Earnings Chart */}
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg p-6">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-800">Weekly Performance</h3>
+            <h3 className="text-xl font-bold text-gray-800">
+              Weekly Performance
+            </h3>
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-500">Peak:</span>
               <span className="font-semibold text-green-600">
@@ -2271,7 +2284,11 @@ const DriverEarningsSection = () => {
               return (
                 <div key={data.day} className="space-y-1">
                   <div className="flex items-center justify-between text-sm">
-                    <span className={`font-medium ${isToday ? 'text-blue-600' : 'text-gray-700'}`}>
+                    <span
+                      className={`font-medium ${
+                        isToday ? "text-blue-600" : "text-gray-700"
+                      }`}
+                    >
                       {data.day}
                     </span>
                     <span className="text-gray-600">{data.journeys} trips</span>
@@ -2281,13 +2298,14 @@ const DriverEarningsSection = () => {
                       <div
                         className={`h-8 rounded-full transition-all duration-700 ease-out flex items-center justify-end pr-3 ${
                           isToday
-                            ? 'bg-gradient-to-r from-blue-400 to-blue-600'
-                            : 'bg-gradient-to-r from-green-400 to-green-600'
+                            ? "bg-gradient-to-r from-blue-400 to-blue-600"
+                            : "bg-gradient-to-r from-green-400 to-green-600"
                         }`}
                         style={{ width: `${percentage}%` }}
                       >
                         <span className="text-white text-xs font-semibold">
-                          {percentage > 20 && `UGX ${data.amount.toLocaleString()}`}
+                          {percentage > 20 &&
+                            `UGX ${data.amount.toLocaleString()}`}
                         </span>
                       </div>
                     </div>
@@ -2307,14 +2325,18 @@ const DriverEarningsSection = () => {
         <div className="space-y-6">
           {/* Completion Rate */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-bold text-gray-800 mb-4">Performance Metrics</h3>
-            
+            <h3 className="text-lg font-bold text-gray-800 mb-4">
+              Performance Metrics
+            </h3>
+
             <div className="space-y-4">
               {/* Completion Rate Circle */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600">Completion Rate</p>
-                  <p className="text-2xl font-bold text-gray-800">{performance.completionRate}%</p>
+                  <p className="text-2xl font-bold text-gray-800">
+                    {performance.completionRate}%
+                  </p>
                 </div>
                 <div className="relative w-20 h-20">
                   <svg className="transform -rotate-90 w-20 h-20">
@@ -2334,7 +2356,12 @@ const DriverEarningsSection = () => {
                       strokeWidth="8"
                       fill="transparent"
                       strokeDasharray={`${2 * Math.PI * 32}`}
-                      strokeDashoffset={`${2 * Math.PI * 32 * (1 - performance.completionRate / 100)}`}
+                      strokeDashoffset={`${
+                        2 *
+                        Math.PI *
+                        32 *
+                        (1 - performance.completionRate / 100)
+                      }`}
                       strokeLinecap="round"
                     />
                   </svg>
@@ -2350,7 +2377,9 @@ const DriverEarningsSection = () => {
               <div className="pt-4 border-t border-gray-100">
                 <div className="flex items-center justify-between mb-2">
                   <p className="text-sm text-gray-600">On-Time Rate</p>
-                  <p className="text-lg font-bold text-blue-600">{performance.onTimeRate}%</p>
+                  <p className="text-lg font-bold text-blue-600">
+                    {performance.onTimeRate}%
+                  </p>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-2">
                   <div
@@ -2371,8 +2400,8 @@ const DriverEarningsSection = () => {
                           key={star}
                           className={`text-lg ${
                             star <= Math.floor(performance.rating)
-                              ? 'text-yellow-400'
-                              : 'text-gray-300'
+                              ? "text-yellow-400"
+                              : "text-gray-300"
                           }`}
                         >
                           ★
@@ -2394,9 +2423,7 @@ const DriverEarningsSection = () => {
             <p className="text-4xl font-bold mb-2">
               UGX {earnings.total.toLocaleString()}
             </p>
-            <p className="text-sm opacity-90">
-              Keep up the great work! 🎉
-            </p>
+            <p className="text-sm opacity-90">Keep up the great work! 🎉</p>
             <div className="mt-4 pt-4 border-t border-white border-opacity-20">
               <div className="flex items-center justify-between text-sm">
                 <span className="opacity-90">Growth this month</span>
@@ -2409,21 +2436,23 @@ const DriverEarningsSection = () => {
 
       {/* Earnings Breakdown */}
       <div className="bg-white rounded-2xl shadow-lg p-6">
-        <h3 className="text-xl font-bold text-gray-800 mb-6">Earnings Breakdown</h3>
-        
+        <h3 className="text-xl font-bold text-gray-800 mb-6">
+          Earnings Breakdown
+        </h3>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="border-l-4 border-blue-500 pl-4">
             <p className="text-sm text-gray-600 mb-1">Base Fare</p>
             <p className="text-2xl font-bold text-gray-800">UGX 2,850,000</p>
             <p className="text-xs text-gray-500 mt-1">89% of total earnings</p>
           </div>
-          
+
           <div className="border-l-4 border-green-500 pl-4">
             <p className="text-sm text-gray-600 mb-1">Bonuses</p>
             <p className="text-2xl font-bold text-gray-800">UGX 250,000</p>
             <p className="text-xs text-gray-500 mt-1">8% of total earnings</p>
           </div>
-          
+
           <div className="border-l-4 border-orange-500 pl-4">
             <p className="text-sm text-gray-600 mb-1">Tips</p>
             <p className="text-2xl font-bold text-gray-800">UGX 100,000</p>
@@ -2662,7 +2691,10 @@ export const DriverDashboard = () => {
             }
           );
 
-          console.log(`📡 Response status for journey ${journey.id}:`, response.status);
+          console.log(
+            `📡 Response status for journey ${journey.id}:`,
+            response.status
+          );
 
           if (response.ok) {
             const data = await response.json();
@@ -2791,28 +2823,29 @@ export const DriverDashboard = () => {
 
   // ================== Render ==================
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* ===== Header ===== */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <h1 className="text-2xl font-bold text-gray-900">
-              🚍 Driver Dashboard
-            </h1>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
-                Welcome, {user?.first_name || "Driver"}
-                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                  💰 UGX {walletBalance.toLocaleString()}
-                </span>
-              </div>
-              <button
-                onClick={logout}
-                className="bg-red-600 text-white px-4 py-2 rounded-md text-sm hover:bg-red-700"
-              >
-                Logout
-              </button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-[#050221] to-[#0f0332] text-[#eaeaea]">
+      {/* Header */}
+      <header className="bg-[#0f0332]/90 border-b border-[#3a3a3a] shadow-md">
+        <div className="max-w-7xl mx-auto flex justify-between items-center p-4">
+          <h1 className="text-2xl font-semibold text-[#f3f3f3]">
+            🚍 Driver Dashboard
+          </h1>
+          <div className="flex items-center space-x-4">
+            <span className="text-[#b0b0b0]">
+              Welcome,{" "}
+              <span className="text-[#f0f0f0]">
+                {user?.first_name || "Driver"}
+              </span>
+              <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium ml-2">
+                💰 UGX {walletBalance.toLocaleString()}
+              </span>
+            </span>
+            <button
+              onClick={logout}
+              className="bg-[#5b3838] hover:bg-[#f28b82] text-white px-4 py-2 rounded-md transition"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
@@ -3189,6 +3222,564 @@ export const DriverDashboard = () => {
 };
 
 // ================= ADMIN DASHBOARD =================
+
+const AdminAnalyticsDashboard = ({ token }) => {
+  const [stats, setStats] = useState({
+    overview: {
+      totalRevenue: 45780000,
+      totalJourneys: 1247,
+      totalPassengers: 8934,
+      totalDrivers: 45,
+      activeBuses: 38,
+      averageRating: 4.6,
+      revenueGrowth: 15.3,
+      journeysGrowth: 12.8,
+    },
+    drivers: [
+      {
+        id: 1,
+        name: "John Kamau",
+        earnings: 2850000,
+        trips: 156,
+        rating: 4.8,
+        onTimeRate: 96,
+        status: "active",
+      },
+      {
+        id: 2,
+        name: "Sarah Nabukalu",
+        earnings: 2650000,
+        trips: 142,
+        rating: 4.9,
+        onTimeRate: 98,
+        status: "active",
+      },
+      {
+        id: 3,
+        name: "David Okello",
+        earnings: 2420000,
+        trips: 138,
+        rating: 4.7,
+        onTimeRate: 94,
+        status: "active",
+      },
+      {
+        id: 4,
+        name: "Grace Auma",
+        earnings: 2380000,
+        trips: 135,
+        rating: 4.6,
+        onTimeRate: 92,
+        status: "active",
+      },
+      {
+        id: 5,
+        name: "Peter Mugisha",
+        earnings: 2150000,
+        trips: 128,
+        rating: 4.8,
+        onTimeRate: 95,
+        status: "active",
+      },
+    ],
+    journeyStats: {
+      scheduled: 45,
+      inProgress: 12,
+      completed: 1190,
+      cancelled: 23,
+      completionRate: 98.1,
+    },
+    passengerStats: {
+      activeToday: 234,
+      totalWalletBalance: 12500000,
+      averageWalletBalance: 1400,
+      newThisMonth: 156,
+      frequentTravelers: 892,
+    },
+    revenueByRoute: [
+      {
+        route: "Kampala - Entebbe",
+        revenue: 8500000,
+        trips: 342,
+        passengers: 4560,
+      },
+      {
+        route: "Kampala - Jinja",
+        revenue: 7200000,
+        trips: 298,
+        passengers: 3980,
+      },
+      {
+        route: "Kampala - Mbarara",
+        revenue: 6800000,
+        trips: 186,
+        passengers: 2890,
+      },
+      {
+        route: "Kampala - Mbale",
+        revenue: 5900000,
+        trips: 167,
+        passengers: 2340,
+      },
+      {
+        route: "Entebbe - Jinja",
+        revenue: 4200000,
+        trips: 154,
+        passengers: 1980,
+      },
+    ],
+    dailyStats: [
+      { day: "Mon", revenue: 6500000, journeys: 178, passengers: 1240 },
+      { day: "Tue", revenue: 7200000, journeys: 195, passengers: 1360 },
+      { day: "Wed", revenue: 6800000, journeys: 185, passengers: 1290 },
+      { day: "Thu", revenue: 7500000, journeys: 201, passengers: 1420 },
+      { day: "Fri", revenue: 8200000, journeys: 215, passengers: 1580 },
+      { day: "Sat", revenue: 5800000, journeys: 142, passengers: 980 },
+      { day: "Sun", revenue: 3800000, journeys: 131, passengers: 1064 },
+    ],
+  });
+
+  const maxDailyRevenue = Math.max(...stats.dailyStats.map((d) => d.revenue));
+  const maxRouteRevenue = Math.max(
+    ...stats.revenueByRoute.map((r) => r.revenue)
+  );
+
+  const StatCard = ({
+    icon: Icon,
+    title,
+    value,
+    subtitle,
+    trend,
+    color = "blue",
+  }) => {
+    const colorClasses = {
+      blue: "from-blue-500 to-blue-600",
+      green: "from-green-500 to-green-600",
+      purple: "from-purple-500 to-purple-600",
+      orange: "from-orange-500 to-orange-600",
+      pink: "from-pink-500 to-pink-600",
+      indigo: "from-indigo-500 to-indigo-600",
+    };
+
+    return (
+      <div
+        className={`bg-gradient-to-br ${colorClasses[color]} rounded-2xl p-6 text-white shadow-lg transform hover:scale-105 transition-all duration-200`}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <div className="bg-white bg-opacity-20 rounded-lg p-3">
+            <Icon className="w-6 h-6" />
+          </div>
+          {trend && (
+            <div className="flex items-center text-sm bg-white bg-opacity-20 px-2 py-1 rounded-full">
+              {trend > 0 ? (
+                <TrendingUp className="w-4 h-4 mr-1" />
+              ) : (
+                <TrendingDown className="w-4 h-4 mr-1" />
+              )}
+              <span>{Math.abs(trend)}%</span>
+            </div>
+          )}
+        </div>
+        <h3 className="text-sm font-medium opacity-90">{title}</h3>
+        <p className="text-3xl font-bold mt-1">{value}</p>
+        {subtitle && <p className="text-sm opacity-80 mt-2">{subtitle}</p>}
+      </div>
+    );
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Overview Stats */}
+      <div>
+        <h2 className="text-2xl font-bold text-gray-800 mb-4">
+          📊 System Overview
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <StatCard
+            icon={DollarSign}
+            title="Total Revenue"
+            value={`UGX ${(stats.overview.totalRevenue / 1000000).toFixed(1)}M`}
+            subtitle="This month"
+            trend={stats.overview.revenueGrowth}
+            color="green"
+          />
+          <StatCard
+            icon={MapPin}
+            title="Total Journeys"
+            value={stats.overview.totalJourneys.toLocaleString()}
+            subtitle="Completed this month"
+            trend={stats.overview.journeysGrowth}
+            color="blue"
+          />
+          <StatCard
+            icon={Users}
+            title="Total Passengers"
+            value={stats.overview.totalPassengers.toLocaleString()}
+            subtitle={`${stats.passengerStats.newThisMonth} new this month`}
+            color="purple"
+          />
+          <StatCard
+            icon={Bus}
+            title="Active Buses"
+            value={`${stats.overview.activeBuses}/${stats.overview.totalDrivers}`}
+            subtitle={`${(
+              (stats.overview.activeBuses / stats.overview.totalDrivers) *
+              100
+            ).toFixed(1)}% utilization`}
+            color="orange"
+          />
+        </div>
+      </div>
+
+      {/* Journey Status & Performance Metrics */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Journey Status */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            🚍 Journey Status
+          </h3>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Clock className="w-5 h-5 text-blue-600" />
+                <span className="text-gray-700">Scheduled</span>
+              </div>
+              <span className="text-2xl font-bold text-blue-600">
+                {stats.journeyStats.scheduled}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <Activity className="w-5 h-5 text-green-600" />
+                <span className="text-gray-700">In Progress</span>
+              </div>
+              <span className="text-2xl font-bold text-green-600">
+                {stats.journeyStats.inProgress}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <CheckCircle className="w-5 h-5 text-purple-600" />
+                <span className="text-gray-700">Completed</span>
+              </div>
+              <span className="text-2xl font-bold text-purple-600">
+                {stats.journeyStats.completed}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between p-3 bg-red-50 rounded-lg">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600" />
+                <span className="text-gray-700">Cancelled</span>
+              </div>
+              <span className="text-2xl font-bold text-red-600">
+                {stats.journeyStats.cancelled}
+              </span>
+            </div>
+
+            <div className="pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">Completion Rate</span>
+                <span className="text-lg font-bold text-green-600">
+                  {stats.journeyStats.completionRate}%
+                </span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-green-400 to-green-600 h-2 rounded-full transition-all duration-700"
+                  style={{ width: `${stats.journeyStats.completionRate}%` }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Passenger Statistics */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            👥 Passenger Insights
+          </h3>
+          <div className="space-y-4">
+            <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Active Today</p>
+              <p className="text-3xl font-bold text-blue-700">
+                {stats.passengerStats.activeToday}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Currently traveling</p>
+            </div>
+
+            <div className="p-4 bg-gradient-to-br from-green-50 to-green-100 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Total Wallet Balance</p>
+              <p className="text-3xl font-bold text-green-700">
+                UGX{" "}
+                {(stats.passengerStats.totalWalletBalance / 1000000).toFixed(1)}
+                M
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Avg: UGX{" "}
+                {stats.passengerStats.averageWalletBalance.toLocaleString()}
+              </p>
+            </div>
+
+            <div className="p-4 bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">Frequent Travelers</p>
+              <p className="text-3xl font-bold text-purple-700">
+                {stats.passengerStats.frequentTravelers}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">10+ trips this month</p>
+            </div>
+
+            <div className="p-4 bg-gradient-to-br from-orange-50 to-orange-100 rounded-lg">
+              <p className="text-sm text-gray-600 mb-1">New This Month</p>
+              <p className="text-3xl font-bold text-orange-700">
+                {stats.passengerStats.newThisMonth}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">Growing steadily</p>
+            </div>
+          </div>
+        </div>
+
+        {/* System Performance */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            ⚡ Performance
+          </h3>
+          <div className="space-y-6">
+            {/* Average Rating */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-gray-600">System Rating</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex">
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <span
+                        key={star}
+                        className={`text-lg ${
+                          star <= Math.floor(stats.overview.averageRating)
+                            ? "text-yellow-400"
+                            : "text-gray-300"
+                        }`}
+                      >
+                        ★
+                      </span>
+                    ))}
+                  </div>
+                  <span className="text-lg font-bold text-gray-800">
+                    {stats.overview.averageRating}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Revenue Growth */}
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-sm text-gray-600 mb-2">Revenue Growth</p>
+              <div className="flex items-end gap-1 h-32">
+                {[12.5, 14.2, 13.8, 15.3, 14.7, 16.2, 15.3].map(
+                  (value, idx) => (
+                    <div
+                      key={idx}
+                      className="flex-1 flex flex-col items-center"
+                    >
+                      <div
+                        className="w-full bg-gradient-to-t from-green-500 to-green-400 rounded-t transition-all duration-500 hover:from-green-600 hover:to-green-500"
+                        style={{ height: `${(value / 16.2) * 100}%` }}
+                      />
+                      <span className="text-xs text-gray-500 mt-1">
+                        {["M", "T", "W", "T", "F", "S", "S"][idx]}
+                      </span>
+                    </div>
+                  )
+                )}
+              </div>
+              <p className="text-xs text-center text-gray-500 mt-2">
+                Weekly growth trend: +{stats.overview.revenueGrowth}%
+              </p>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="pt-4 border-t border-gray-200">
+              <button className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2 rounded-lg hover:from-blue-600 hover:to-blue-700 transition-all duration-200 text-sm font-medium">
+                📄 Generate Report
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Daily Revenue Chart */}
+      <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-800">
+            📈 Daily Performance
+          </h3>
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+              <span className="text-gray-600">Revenue</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+              <span className="text-gray-600">Journeys</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          {stats.dailyStats.map((data, idx) => {
+            const revenuePercent = (data.revenue / maxDailyRevenue) * 100;
+            const isToday = idx === new Date().getDay() - 1;
+
+            return (
+              <div key={data.day} className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span
+                    className={`font-medium w-12 ${
+                      isToday ? "text-blue-600" : "text-gray-700"
+                    }`}
+                  >
+                    {data.day}
+                  </span>
+                  <div className="flex gap-4 text-gray-600">
+                    <span>{data.journeys} trips</span>
+                    <span>{data.passengers} passengers</span>
+                  </div>
+                  <span className="font-semibold text-green-600">
+                    UGX {(data.revenue / 1000000).toFixed(1)}M
+                  </span>
+                </div>
+                <div className="relative">
+                  <div className="w-full bg-gray-100 rounded-full h-6 overflow-hidden">
+                    <div
+                      className={`h-6 rounded-full transition-all duration-700 ease-out ${
+                        isToday
+                          ? "bg-gradient-to-r from-blue-400 to-blue-600"
+                          : "bg-gradient-to-r from-green-400 to-green-600"
+                      }`}
+                      style={{ width: `${revenuePercent}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Top Drivers & Revenue by Route */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Top Drivers */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            🏆 Top Performing Drivers
+          </h3>
+          <div className="space-y-3">
+            {stats.drivers.map((driver, idx) => (
+              <div
+                key={driver.id}
+                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-white ${
+                      idx === 0
+                        ? "bg-yellow-500"
+                        : idx === 1
+                        ? "bg-gray-400"
+                        : idx === 2
+                        ? "bg-orange-600"
+                        : "bg-blue-500"
+                    }`}
+                  >
+                    {idx + 1}
+                  </div>
+                  <div>
+                    <p className="font-semibold text-gray-800">{driver.name}</p>
+                    <div className="flex items-center gap-3 text-xs text-gray-500">
+                      <span>{driver.trips} trips</span>
+                      <span>⭐ {driver.rating}</span>
+                      <span>⏰ {driver.onTimeRate}%</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-lg font-bold text-green-600">
+                    UGX {(driver.earnings / 1000000).toFixed(2)}M
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Revenue by Route */}
+        <div className="bg-white rounded-2xl shadow-lg p-6">
+          <h3 className="text-xl font-bold text-gray-800 mb-4">
+            🛣️ Top Routes by Revenue
+          </h3>
+          <div className="space-y-4">
+            {stats.revenueByRoute.map((route, idx) => {
+              const percent = (route.revenue / maxRouteRevenue) * 100;
+
+              return (
+                <div key={idx} className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-gray-700">
+                      {route.route}
+                    </span>
+                    <span className="text-gray-600">{route.trips} trips</span>
+                  </div>
+                  <div className="relative">
+                    <div className="w-full bg-gray-100 rounded-full h-8 overflow-hidden">
+                      <div
+                        className="h-8 rounded-full bg-gradient-to-r from-purple-400 to-purple-600 flex items-center justify-end pr-3 transition-all duration-700"
+                        style={{ width: `${percent}%` }}
+                      >
+                        {percent > 30 && (
+                          <span className="text-white text-xs font-semibold">
+                            UGX {(route.revenue / 1000000).toFixed(1)}M
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    {percent <= 30 && (
+                      <span className="absolute right-2 top-1.5 text-xs font-semibold text-gray-700">
+                        UGX {(route.revenue / 1000000).toFixed(1)}M
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    {route.passengers.toLocaleString()} passengers
+                  </p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* System Alerts & Notifications */}
+      <div className="bg-gradient-to-br from-orange-50 to-orange-100 border-l-4 border-orange-500 rounded-lg p-6">
+        <div className="flex items-start gap-4">
+          <AlertCircle className="w-6 h-6 text-orange-600 flex-shrink-0 mt-1" />
+          <div className="flex-1">
+            <h4 className="font-bold text-gray-800 mb-2">⚠️ System Alerts</h4>
+            <div className="space-y-2 text-sm text-gray-700">
+              <p>• 3 buses require maintenance within the next 7 days</p>
+              <p>• Peak hours: 7-9 AM and 5-7 PM show highest demand</p>
+              <p>
+                • Consider adding more routes to Entebbe-Jinja (high demand)
+              </p>
+              <p>• Average passenger wait time: 12 minutes (optimal)</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -3577,16 +4168,23 @@ export const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-[#050221] to-[#0f0332] text-[#eaeaea]">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b">
+      <header className="bg-[#0f0332]/90 border-b border-[#3a3a3a] shadow-md">
         <div className="max-w-7xl mx-auto flex justify-between items-center p-4">
-          <h1 className="text-2xl font-bold">🛠 Admin Dashboard</h1>
+          <h1 className="text-2xl font-semibold text-[#f3f3f3]">
+            🛠 Admin Dashboard
+          </h1>
           <div className="flex items-center space-x-4">
-            <span>Welcome, {user?.first_name || "System"}</span>
+            <span className="text-[#b0b0b0]">
+              Welcome,{" "}
+              <span className="text-[#f0f0f0]">
+                {user?.first_name || "System"}
+              </span>
+            </span>
             <button
               onClick={logout}
-              className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700"
+              className="bg-[#5b3838] hover:bg-[#f28b82] text-white px-4 py-2 rounded-md transition"
             >
               Logout
             </button>
@@ -3595,22 +4193,45 @@ export const AdminDashboard = () => {
       </header>
 
       {/* Tabs */}
-      <nav className="border-b flex space-x-6 p-4">
-        {["overview", "buses", "drivers", "passengers", "journeys"].map(
-          (tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`py-2 px-3 border-b-2 ${
-                activeTab === tab
-                  ? "border-blue-500 text-blue-600"
-                  : "border-transparent text-gray-600 hover:text-gray-800"
-              }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
-          )
-        )}
+      <nav className="relative flex space-x-3 p-4 bg-[#0f0332]/50 rounded-xl">
+        {[
+          "overview",
+          "buses",
+          "drivers",
+          "passengers",
+          "journeys",
+          "analytics",
+        ].map((tab, index) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`relative z-10 py-2 px-4 transition-all duration-300 rounded-full font-medium ${
+              activeTab === tab
+                ? "text-white"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+
+        {/* Sliding pill indicator */}
+        <span
+          className="absolute top-0 left-0 h-full bg-blue-600 rounded-full shadow-lg transition-all duration-300 z-0"
+          style={{
+            width: `${100 / 6}%`, // 6 tabs
+            transform: `translateX(${
+              [
+                "overview",
+                "buses",
+                "drivers",
+                "passengers",
+                "journeys",
+                "analytics",
+              ].indexOf(activeTab) * 100
+            }%)`,
+          }}
+        />
       </nav>
 
       {/* Content */}
@@ -4144,7 +4765,7 @@ export const AdminDashboard = () => {
 
               <button
                 onClick={assignBusToRoute}
-                className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                className="border px-3 py-2 rounded w-full"
               >
                 Assign Journey
               </button>
@@ -4203,6 +4824,8 @@ export const AdminDashboard = () => {
             </div>
           </div>
         )}
+        {/* Analytics - Comprehensive analytics dashboard */}
+        {activeTab === "analytics" && <AdminAnalyticsDashboard token={token} />}
       </div>
     </div>
   );
